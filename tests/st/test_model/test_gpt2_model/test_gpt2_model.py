@@ -38,7 +38,7 @@ from mindformers.pipeline import pipeline
 
 def generator():
     """dataset generator"""
-    seq_len = 1025
+    seq_len = 21
     input_ids = np.random.randint(low=0, high=15, size=(seq_len,)).astype(np.int32)
     input_mask = np.ones_like(input_ids)
     label_ids = input_ids
@@ -68,7 +68,8 @@ def test_gpt_trainer_train_from_instance():
     config = ConfigArguments(seed=2022, runner_config=runner_config)
 
     # Model
-    gpt_model = GPT2LMHeadModel()
+    config = GPT2Config(seq_length=20, vocab_size=2000, num_heads=4, num_layers=2)
+    gpt_model = GPT2LMHeadModel(config)
 
     # Dataset and operations
     dataset = GeneratorDataset(generator, column_names=["input_ids"])
