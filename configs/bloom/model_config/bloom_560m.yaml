@@ -1,11 +1,11 @@
 model:
   model_config:
     type: BloomConfig
-    seq_length: 20
+    seq_length: 1024
     vocab_size: 250880
-    embedding_size: 64
-    num_layers: 2
-    num_heads: 8
+    embedding_size: 1024
+    num_layers: 24
+    num_heads: 16
     expand_ratio: 4
     hidden_act: "gelu"
     dropout_prob: 0.0
@@ -26,12 +26,3 @@ model:
   arch:
     type: BloomLMHeadModel
 
-processor:
-  return_tensors: ms
-  tokenizer:
-    unk_token: '<|endoftext|>'
-    bos_token: '<|endoftext|>'
-    eos_token: '<|endoftext|>'
-    pad_token: '<|endoftext|>'
-    type: GPT2Tokenizer
-  type: GPT2Processor

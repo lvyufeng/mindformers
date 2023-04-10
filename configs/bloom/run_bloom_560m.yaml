@@ -25,8 +25,8 @@ recompute_config:
   recompute_slice_activation: False
 
 parallel_config:
-  data_parallel: 1
-  model_parallel: 1
+  data_parallel: 4
+  model_parallel: 2
   pipeline_stage: 1
   optimizer_shard: False
   micro_batch_num: 1
@@ -93,4 +93,4 @@ resume_or_finetune_checkpoint: ""
 run_mode: 'train'
 trainer:
   type: CausalLanguageModelingTrainer
-  model_name: 'gpt2'
+  model_name: 'bloom'

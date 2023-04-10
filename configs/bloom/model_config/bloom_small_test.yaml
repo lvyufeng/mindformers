@@ -25,13 +25,3 @@ model:
     do_sample: True
   arch:
     type: BloomLMHeadModel
-
-processor:
-  return_tensors: ms
-  tokenizer:
-    unk_token: '<|endoftext|>'
-    bos_token: '<|endoftext|>'
-    eos_token: '<|endoftext|>'
-    pad_token: '<|endoftext|>'
-    type: GPT2Tokenizer
-  type: GPT2Processor

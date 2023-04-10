@@ -94,8 +94,8 @@ class BloomAttention(Cell):
             self.add = P.Add()
             # Normalize factor for attention, sqrt(dk) as widely used
             self.scale_factor = Tensor(math.sqrt(math.sqrt(self.size_per_head)))
-            self.inv_norm_factor = Tensor(1.0 / math.sqrt(self.size_per_head))
-            self.beta = Tensor(1.0)
+            self.inv_norm_factor = Tensor([1.0 / math.sqrt(self.size_per_head)])
+            self.beta = Tensor([1.0])
             self.use_past = use_past
             self.dropout = Dropout(hidden_dropout_rate)
             self.prob_dropout = Dropout(attention_dropout_rate)
@@ -196,8 +196,8 @@ class BloomAttention(Cell):
                  (parallel_config.data_parallel, parallel_config.model_parallel, 1, 1)))
             # Normalize factor for attention, sqrt(dk) as widely used
             self.scale_factor = Tensor(math.sqrt(math.sqrt(self.size_per_head)))
-            self.inv_norm_factor = Tensor(1.0 / math.sqrt(self.size_per_head))
-            self.beta = Tensor(1.0)
+            self.inv_norm_factor = Tensor([1.0 / math.sqrt(self.size_per_head)])
+            self.beta = Tensor([1.0])
             self.use_past = use_past
             self.dropout = Dropout(hidden_dropout_rate)
             self.prob_dropout = Dropout(attention_dropout_rate)

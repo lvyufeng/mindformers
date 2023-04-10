@@ -236,14 +236,23 @@ class Dropout(nn.Cell):
         A Dropout Implements with P.DropoutGenMask and  P.DropoutDoMask for parallel training.
     """
 
-    def __init__(self, keep_prob=0.5, dtype=mstype.float32):
+    def __init__(self, keep_prob=0.5, p=None, dtype=mstype.float32):
         super(Dropout, self).__init__()
-        if keep_prob <= 0 or keep_prob > 1:
-            raise ValueError(
-                "dropout probability should be a number in range (0, 1], but got {}".format(
-                    keep_prob))
         Validator.check_subclass("dtype", dtype, mstype.number_type, self.cls_name)
         Validator.check_value_type('keep_prob', keep_prob, [float], self.cls_name)
+        if p is None:
+            logger.warning("For Dropout, this parameter `keep_prob` will be deprecated, please use `p` instead.")
+            Validator.check_value_type('keep_prob', keep_prob, [float], self.cls_name)
+            if keep_prob <= 0 or keep_prob > 1:
+                raise ValueError(f"For '{self.cls_name}', the 'keep_prob' must be a number in range (0, 1], "
+                                 f"but got {keep_prob}.")
+        else:
+            Validator.check_value_type('p', p, [float, int], self.cls_name)
+            if p < 0 or p >= 1:
+                raise ValueError(f"For '{self.cls_name}', the 'p' must be a number in range [0, 1), "
+                                 f"but got {p}.")
+            keep_prob = 1-p
+
         self.keep_prob = keep_prob
         self.is_ascend = context.get_context('device_target') in ["Ascend"]
         if self.is_ascend:

@@ -1,6 +1,6 @@
 model:
   model_config:
-    type: GPT2Config
+    type: BloomConfig
     seq_length: 1024
     vocab_size: 50257
     embedding_size: 768
@@ -16,7 +16,7 @@ model:
     layernorm_dtype: "float32"
     softmax_dtype: "float32"
     compute_dtype: "float16"
-    checkpoint_name_or_path: "gpt2"
+    checkpoint_name_or_path: "bloom"
     eos_token: 50256
     repetition_penalty: 1
     max_decode_length: 1024
@@ -24,14 +24,4 @@ model:
     top_p: 1
     do_sample: True
   arch:
-    type: GPT2LMHeadModel
-
-processor:
-  return_tensors: ms
-  tokenizer:
-    unk_token: '<|endoftext|>'
-    bos_token: '<|endoftext|>'
-    eos_token: '<|endoftext|>'
-    pad_token: '<|endoftext|>'
-    type: GPT2Tokenizer
-  type: GPT2Processor
+    type: BloomLMHeadModel
