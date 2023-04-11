@@ -337,8 +337,7 @@ class BaseTrainer:
         logger.info(".........Build Model Wrapper for Train From Config..........")
         model_wrapper = build_wrapper(self.config.runner_wrapper,
                                       default_args={"network": network,
-                                                    "optimizer": optimizer,
-                                                    "parallel_config": self.config.parallel_config})
+                                                    "optimizer": optimizer})
         return model_wrapper
 
     def create_callbacks(self, default_args: dict = None):

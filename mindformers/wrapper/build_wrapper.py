@@ -53,7 +53,6 @@ def build_wrapper(config: dict = None, default_args: dict = None,
                 config.scale_sense = build_wrapper(config.scale_sense)
             elif isinstance(config.scale_sense, int):
                 config.scale_sense = Tensor(config.scale_sense, ms.float32)
-        print(config)
         return MindFormerRegister.get_instance_from_cfg(
             config, MindFormerModuleType.WRAPPER, default_args=default_args)
     return MindFormerRegister.get_instance(module_type, class_name, **kwargs)

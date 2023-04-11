@@ -185,7 +185,6 @@ class MindFormerRegister:
             raise ValueError("Can't find class type {} class name {} \
             in class registry".format(type, obj_type))
 
-        print(obj_cls, args)
         try:
             return obj_cls(**args)
         except Exception as e:
