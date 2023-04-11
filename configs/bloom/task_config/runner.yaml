@@ -1,7 +1,7 @@
 # runner config
 runner_config:
   epochs: 3
-  batch_size: 8
+  batch_size: 2
   sink_size: 1
   image_size: 224
   sink_mode: True

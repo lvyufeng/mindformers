@@ -31,8 +31,8 @@ from mindspore.common.tensor import Tensor
 from mindspore.ops import functional as F
 from mindspore.ops import operations as P
 
-from .gpt2_config import Gpt2Config
-from .gpt_modules import GPT2TransformerDecoderLayer
+from .bloom_config import BloomConfig
+from .bloom_modules import BloomLayer, AlibiTensor
 from .initializer import SmallNormal, WangNormal
 
 __all__ = ['GPT2LMHeadModel']
@@ -41,8 +41,10 @@ __all__ = ['GPT2LMHeadModel']
 default_transformer_config = TransformerOpParallelConfig()
 
 
+
+
 @MindFormerRegister.register(MindFormerModuleType.MODELS)
-class GPT2LMHeadModel(BaseModel):
+class BloomLMHeadModel(BaseModel):
     """
             Provide gpt training loss or logits through network.
 
@@ -54,22 +56,22 @@ class GPT2LMHeadModel(BaseModel):
         """
     _support_list = MindFormerBook.get_model_support_list()['gpt2']
 
-    def __init__(self, config: Gpt2Config = None):
-        config = config if config is not None else Gpt2Config()
-        super(GPT2LMHeadModel, self).__init__(config, auto_prefix=False)
+    def __init__(self, config: BloomConfig = None):
+        config = config if config is not None else BloomConfig()
+        super().__init__(config, auto_prefix=False)
 
         self.eos_token = self.config.eos_token
         parallel_config = self.config.parallel_config
         self.stridedslice = P.StridedSlice().shard(((parallel_config.data_parallel, 1),))
         self.not_equal = P.NotEqual().shard(((parallel_config.data_parallel, 1), ()))
 
-        self.backbone = GPT2Model(self.config)
-        self.head = GPTHead(hidden_size=config.embedding_size,
+        self.backbone = BloomModel(self.config)
+        self.head = BloomHead(hidden_size=config.embedding_size,
                             vocab_size=config.vocab_size,
                             parallel_config=self.config.parallel_config)
         if parallel_config.pipeline_stage > 1:
             self.head.pipeline_stage = parallel_config.pipeline_stage - 1
-            self.backbone.embedding.word_embedding.embedding_table.add_pipeline_stage(self.head.pipeline_stage)
+            self.backbone.embedding.word_embeddings.embedding_table.add_pipeline_stage(self.head.pipeline_stage)
 
         mp = config.parallel_config.model_parallel
         vocab_size = config.vocab_size
@@ -115,21 +117,10 @@ class GPT2LMHeadModel(BaseModel):
         return loss
 
 
-class GPTEmbeddingLayer(nn.Cell):
-    """
-    The Embedding Layer of GPT-2 network.
-
-    Args:
-        config(GPT2Config): the config of network.
-
-    Inputs:
-
-    Returns:
-
-    """
-
-    def __init__(self, config: Gpt2Config = None):
-        super(GPTEmbeddingLayer, self).__init__()
+class BloomEmbeddingLayer(nn.Cell):
+    r"""The Embedding Layer of GPT-2 network."""
+    def __init__(self, config = None):
+        super().__init__(auto_prefix=False)
         parallel_config = copy.deepcopy(config.parallel_config)
         embedding_mp = config.parallel_config.embedding_dp_mp_config.model_parallel
         vocab_size = config.vocab_size
@@ -139,31 +130,21 @@ class GPTEmbeddingLayer(nn.Cell):
             logger.warning("Now, model_parallel will be changed: mp = 1")
             parallel_config.embedding_dp_mp_config.model_parallel = 1
 
-        self.word_embedding = VocabEmbedding(vocab_size=vocab_size,
-                                             embedding_size=config.embedding_size,
-                                             param_init=initializer(TruncatedNormal(config.initializer_range),
+        self.word_embeddings = VocabEmbedding(vocab_size=vocab_size,
+                                              embedding_size=config.embedding_size,
+                                              param_init=initializer(TruncatedNormal(config.initializer_range),
                                                                     [vocab_size, config.embedding_size],
-                                                                    dtype=mstype.float32),
-                                             parallel_config=parallel_config.embedding_dp_mp_config)
+                                                                    dtype=mstype.float32))
+
         new_parallel_config = copy.deepcopy(parallel_config)
         new_parallel_config.vocab_emb_dp = True
 
-        self.position_embedding = VocabEmbedding(vocab_size=config.seq_length,
-                                                 embedding_size=config.embedding_size,
-                                                 param_init=initializer(TruncatedNormal(config.initializer_range),
-                                                                        [config.seq_length, config.embedding_size],
-                                                                        dtype=mstype.float32),
-                                                 parallel_config=new_parallel_config.embedding_dp_mp_config)
-        self.add = P.Add().shard(
-            ((parallel_config.data_parallel, 1, 1), (parallel_config.data_parallel, 1, 1)))
-        self.dropout = Dropout(1 - config.dropout_prob)
-        self.dropout.shard(((parallel_config.data_parallel, 1, 1),))
+        self.norm = LayerNorm((config.embedding_size,))
 
-    def construct(self, input_ids, input_position):
-        word_embedding, word_table = self.word_embedding(input_ids)
-        position_embedding, _ = self.position_embedding(input_position)
-        embedding = self.add(word_embedding, position_embedding)
-        embedding = self.dropout(embedding)
+    def construct(self, input_ids):
+        """The forward compute of Embedding Layer."""
+        word_embedding, word_table = self.word_embeddings(input_ids)
+        embedding = self.norm(word_embedding)
         return embedding, word_table
 
 
@@ -282,7 +263,7 @@ def generate_pp_id_list_new(layers, per_stage_layers):
     return pp_id_list
 
 
-class GPT2Model(nn.Cell):
+class BloomModel(nn.Cell):
     """
     The backbone of GPT network
 
@@ -300,9 +281,9 @@ class GPT2Model(nn.Cell):
     """
 
     def __init__(self, config):
-        super(GPT2Model, self).__init__()
+        super().__init__()
 
-        self.embedding = GPTEmbeddingLayer(config)
+        self.embedding = BloomEmbeddingLayer(config)
         self.embedding.pipeline_stage = 0
 
         self.layernorm = LayerNorm((config.embedding_size,)).to_float(config.layernorm_dtype)
@@ -313,8 +294,10 @@ class GPT2Model(nn.Cell):
         self.layernorm.shard(((config.parallel_config.data_parallel, 1),))
         self.layernorm.pipeline_stage = config.parallel_config.pipeline_stage - 1
 
-        self.get_attention_mask = AttentionMask(seq_length=config.seq_length,
+        self.make_causal_attention = AttentionMask(seq_length=config.seq_length,
                                                 parallel_config=config.parallel_config.dp_mp_config)
+
+        self.build_alibi_tensor = AlibiTensor(seq_length=config.seq_length, num_heads=config.num_heads)
 
         self.num_layers = config.num_layers
         self.blocks = nn.CellList()
@@ -322,7 +305,7 @@ class GPT2Model(nn.Cell):
         out_param_init_func = WangNormal(hidden_size=config.embedding_size, n_layers=config.num_layers)
         pp_id_list = generate_pp_id_list_new(layers=self.num_layers, per_stage_layers=config.per_stage_layers)
         for i in range(self.num_layers):
-            block = GPT2TransformerDecoderLayer(
+            block = BloomLayer(
                 hidden_size=config.embedding_size,
                 batch_size=config.batch_size,
                 ffn_hidden_size=config.embedding_size * config.expand_ratio,
@@ -349,32 +332,30 @@ class GPT2Model(nn.Cell):
             self.blocks.append(block)
 
         self.cast = P.Cast()
-        self.tile = P.Tile().shard(((config.parallel_config.data_parallel,),))
         self.dtype = mstype.float16
-        self.input_position = Tensor(np.arange(config.seq_length), mstype.int32)
 
     def construct(self, input_ids, input_mask):
         """GPT model"""
-        batch_size, _ = F.shape(input_ids)
-        input_position = self.tile(self.input_position, (batch_size, 1))
 
-        input_embedding, embedding_table = self.embedding(input_ids, input_position)
+        input_embedding, embedding_table = self.embedding(input_ids)
 
-        attention_mask = self.get_attention_mask(input_mask)
 
         hidden_states = self.cast(input_embedding, self.dtype)
+        causal_mask = self.make_causal_attention(input_mask)
+        alibi_tensor = self.build_alibi_tensor(input_mask, hidden_states.dtype)
+
         hidden_shape = F.shape(hidden_states)
         hidden_states = F.reshape(hidden_states, (-1, hidden_shape[-1]))
 
         for i in range(self.num_layers):
-            hidden_states = self.blocks[i](hidden_states, attention_mask)
+            hidden_states = self.blocks[i](hidden_states, alibi_tensor, causal_mask)
 
         output_state = self.layernorm(hidden_states)
 
         return output_state, embedding_table
 
 
-class GPTHead(nn.Cell):
+class BloomHead(nn.Cell):
     """
     Head for GPT to get the logits of each token in the vocab
 
@@ -410,7 +391,7 @@ class GPTHead(nn.Cell):
         else:
             self.matmul = P.MatMul(transpose_b=True).shard(((copied_parallel_config.data_parallel, 1), (
                 copied_parallel_config.model_parallel, 1)))
-        self.hidden_size = hidden_size
+        self.embedding_size = hidden_size
         self.dtype = compute_type
         self.cast = P.Cast()
         self.reshape = P.Reshape()

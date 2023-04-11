@@ -1,0 +1,30 @@
+base_config: [
+    './task_config/context.yaml',
+    './task_config/runner.yaml',
+    './task_config/bloom_dataset.yaml',
+    './model_config/bloom_560m.yaml',
+    '../__base__.yaml' ]
+
+runner_config:
+  epochs: 3
+  batch_size: 2
+  sink_size: 1
+  sink_mode: True
+  per_epoch_size: 1
+  initial_epoch: 0
+  has_trained_epoches: 0
+  has_trained_steps: 0
+
+profile: False
+use_parallel: True
+
+seed: 0
+resume_or_finetune_checkpoint: ""
+# 使用分布式加载被切分的权重时请输入存放checkpoint的根目录，目录结构需满足 */{checkpoint_root_dir}/rank_*/checkpoint/**.ckpt
+# 此时只需要写: resume_or_finetune_checkpoint: "*/{checkpoint_root_dir}", 只填根目录即可.
+
+
+run_mode: 'train'
+trainer:
+  type: MaskedLanguageModelingTrainer
+  model_name: 'bloom'

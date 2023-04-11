@@ -1,8 +1,8 @@
 base_config: [
     './task_config/context.yaml',
     './task_config/runner.yaml',
-    './task_config/gpt2_dataset.yaml',
-    './model_config/gpt2.yaml',
+    './task_config/bloom_dataset.yaml',
+    './model_config/bloom_small_test.yaml',
     '../__base__.yaml' ]
 
 runner_config:
@@ -27,4 +27,4 @@ resume_or_finetune_checkpoint: ""
 run_mode: 'train'
 trainer:
   type: MaskedLanguageModelingTrainer
-  model_name: 'gpt2'
+  model_name: 'bloom'

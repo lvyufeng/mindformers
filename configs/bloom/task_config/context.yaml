@@ -5,8 +5,8 @@ context:
   enable_graph_kernel: False
  # graph_kernel_flags: "--disable_expand_ops=Softmax,Dropout --enable_parallel_fusion=true --reduce_fuse_depth=8 --enable_auto_tensor_inplace=true"
   max_call_depth: 10000
-  max_device_memory: "28GB"
-  save_graphs: True
+  max_device_memory: "30GB"
+  save_graphs: False
   save_graphs_path: "./graph"
   device_id: 0
 
@@ -34,11 +34,11 @@ recompute_config:
   recompute_slice_activation: False
 
 parallel_config:
-  data_parallel: 8
-  model_parallel: 1
+  data_parallel: 4
+  model_parallel: 2
   expert_parallel: 1
-  pipeline_stage: 1
+  pipeline_stage: 2
   optimizer_shard: False
-  micro_batch_num: 1
+  micro_batch_num: 4
   vocab_emb_dp: True
-  gradient_aggregation_group: 6
+  gradient_aggregation_group: 4

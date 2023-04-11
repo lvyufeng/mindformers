@@ -24,7 +24,59 @@ from mindspore.ops import operations as P
 from mindspore.parallel._utils import _get_parallel_mode
 
 
-class GPT2FeedForward(nn.Cell):
+class AlibiTensor(nn.Cell):
+    def __init__(self, seq_length, num_heads):
+        super().__init__()
+        self.seq_length = seq_length
+        self.num_heads = num_heads
+
+        # build slopes
+        closest_power_of_2 = 2 ** math.floor(math.log2(num_heads))
+        base = np.array(2 ** (-(2 ** -(math.log2(closest_power_of_2) - 3))), dtype=np.float32)
+        powers = np.arange(1, 1 + closest_power_of_2, dtype=np.int32)
+        slopes = np.power(base, powers)
+
+        if closest_power_of_2 != num_heads:
+            extra_base = np.array(
+                2 ** (-(2 ** -(math.log2(2 * closest_power_of_2) - 3))), dtype=np.float32
+            )
+            num_remaining_heads = min(closest_power_of_2, num_heads - closest_power_of_2)
+            extra_powers = np.arange(1, 1 + 2 * num_remaining_heads, 2, dtype=np.int32)
+            slopes = np.concatenate([slopes, np.power(extra_base, extra_powers)], axis=0)
+
+        self.slopes = Tensor(slopes, mstype.float32)
+
+    def construct(self, attention_mask, dtype):
+        """
+        Link to paper: https://arxiv.org/abs/2108.12409 Alibi tensor is not causal as the original paper mentions, it
+        relies on a translation invariance of softmax for quick implementation: with l being a tensor, and a fixed value
+        `softmax(l+a) = softmax(l)`. Based on
+        https://github.com/ofirpress/attention_with_linear_biases/blob/a35aaca144e0eb6b789dfcb46784c4b8e31b7983/fairseq/models/transformer.py#L742
+        TODO @thomasw21 this doesn't work as nicely due to the masking strategy, and so masking varies slightly.
+
+        Args:
+        Returns tensor shaped (batch_size * num_heads, 1, max_seq_len)
+            attention_mask:
+                Token-wise attention mask, this should be of shape (batch_size, max_seq_len).
+            num_heads:
+                number of heads
+            dtype:
+                dtype of the output tensor
+        """
+        batch_size = attention_mask.shape[0]
+
+        # Note: alibi will added to the attention bias that will be applied to the query, key product of attention
+        # => therefore alibi will have to be of shape (batch_size, num_heads, query_length, key_length)
+        # => here we set (batch_size=1, num_heads=num_heads, query_length=1, key_length=max_length)
+        # => the query_length dimension will then be broadcasted correctly
+        # This is more or less identical to T5's relative position bias:
+        # https://github.com/huggingface/transformers/blob/f681437203baa7671de3174b0fa583c349d9d5e1/src/transformers/models/t5/modeling_t5.py#L527
+        arange_tensor = ((attention_mask.cumsum(axis=-1) - 1) * attention_mask)[:, None, :]
+        alibi = self.slopes[..., None] * arange_tensor
+        return alibi.reshape(batch_size, self.num_heads, 1, self.seq_length).astype(dtype)
+
+
+class BloomFeedForward(nn.Cell):
     def __init__(self, hidden_size,
                  ffn_hidden_size,
                  dropout_rate,
@@ -35,7 +87,7 @@ class GPT2FeedForward(nn.Cell):
                  out_param_init_func=None,
                  param_init_type=mstype.float32,
                  parallel_config=default_dpmp_config):
-        super(GPT2FeedForward, self).__init__()
+        super().__init__()
         # add wang init
         in_weight_init = in_param_init_func if in_param_init_func else 'normal'
         out_weight_init = out_param_init_func if out_param_init_func else 'normal'
@@ -110,7 +162,7 @@ class GPT2FeedForward(nn.Cell):
         return output
 
 
-class GPT2MultiHeadAttention(Cell):
+class BloomAttention(Cell):
     def __init__(self, batch_size,
                  src_seq_length,
                  tgt_seq_length,
@@ -126,7 +178,7 @@ class GPT2MultiHeadAttention(Cell):
                  use_past=False,
                  parallel_config=default_dpmp_config,
                  use_relative_positions=False):
-        super(GPT2MultiHeadAttention, self).__init__()
+        super().__init__()
         # ROPE
         self.use_relative_positions = use_relative_positions
         # Init
@@ -197,8 +249,14 @@ class GPT2MultiHeadAttention(Cell):
         self.add = P.Add().shard(
             ((parallel_config.data_parallel, 1, 1, 1),
              (parallel_config.data_parallel, parallel_config.model_parallel, 1, 1)))
+        self.add_alibi = P.Add().shard(
+            ((parallel_config.data_parallel, 1, 1, 1),
+             (parallel_config.data_parallel, 1, 1, 1)))
+
         # Normalize factor for attention, sqrt(dk) as widely used
         self.scale_factor = Tensor(math.sqrt(math.sqrt(self.size_per_head)))
+        self.inv_norm_factor = Tensor([1.0 / math.sqrt(self.size_per_head)])
+        self.beta = Tensor([1.0])
         self.use_past = use_past
         self.dropout = nn.Dropout(1 - hidden_dropout_rate)
         self.dropout.dropout.shard(((parallel_config.data_parallel, 1),))
@@ -262,7 +320,7 @@ class GPT2MultiHeadAttention(Cell):
             self.less = P.Less().shard(((1, 1, 1), (1, 1, 1)))
             self.mul1 = P.Mul().shard(((1, 1, 1, 1), (1, 1, 1, 1)))
 
-    def construct(self, query_tensor, key_tensor, value_tensor, attention_mask, key_past=None,
+    def construct(self, query_tensor, key_tensor, value_tensor, alibi_tensor, attention_mask, key_past=None,
                   value_past=None, batch_valid_length=None):
         """Forward process of the MultiHeadAttention"""
         self._check_inputs(query_tensor, key_tensor, value_tensor, attention_mask, key_past,
@@ -353,7 +411,7 @@ class GPT2MultiHeadAttention(Cell):
         layer_present = (key_present, value_present)
         # multi head attention considering attention mask
         # the return shape is [bs * seq_length, hidden_size]
-        attention = self._attn(query, key, value, attention_mask)
+        attention = self._attn(query, key, value, alibi_tensor, attention_mask)
         # Output
         output = self.projection(attention)
         output = self.dropout(output)
@@ -450,7 +508,7 @@ class GPT2MultiHeadAttention(Cell):
             attention_probs = F.reshape(attention_probs, shape)
         return attention_probs
 
-    def _attn(self, query, key, value, attention_mask):
+    def _attn(self, query, key, value, alibi_tensor, attention_mask):
         """
         Get the weighted score along the seq_length
 
@@ -463,53 +521,55 @@ class GPT2MultiHeadAttention(Cell):
         Outputs:
             weighted_values: Tensor, the weighted sum scores
         """
-        # Normalize query and key before MatMul, default off
-        # Attention score [bs, num_heads, seq_length, seq_length]
-        factor = P.Cast()(self.scale_factor, P.DType()(query))
-        query = self.real_div(query, factor)
-        key = self.real_div(key, factor)
-        score = self.batch_matmul(query, key)
-
-        ori_dtype = P.DType()(score)
-        attention_scores = P.Cast()(score, self.softmax_dtype)
-
+        ori_dtype = query.dtype
+        score = self.batch_matmul(query.astype(self.dtype), key.astype(self.dtype))
+        score = score.astype(ori_dtype)
+        score = self.add_alibi(
+            self.mul(score, self.inv_norm_factor.astype(ori_dtype)),
+            self.mul(alibi_tensor, self.beta.astype(ori_dtype))
+            )
+        attention_scores = score.astype(self.softmax_dtype)
         # for input size of (bs, 1) namely the second graph,
         # the shape of attention_mask matrix should be (bs, 1, 1, seq_length)
         if attention_mask is not None:
             if self.use_past and not self.is_first_iteration:
                 # Calculate the current total token
-                current_index = self.reducesum(F.cast(self.not_equal(self.slice(key, (0, 0, 0, 0),
-                                                                                (F.shape(query)[0], 1, 1,
+                current_index = self.reducesum((self.not_equal(self.slice(key, (0, 0, 0, 0),
+                                                                                (query.shape[0], 1, 1,
                                                                                  self.seq_length),
                                                                                 (1, 1, 1, 1)),
-                                                                     0), mstype.float32), (1, 2, 3))
+                                                                     0)).astype(mstype.float32), (1, 2, 3))
                 # Get the precise position index
-                index = self.sub1(F.cast(current_index, mstype.int32), 1)
-                index = F.reshape(index, (-1, 1, 1))
+                index = self.sub1(current_index.astype(mstype.int32), 1)
+                index = index.reshape((-1, 1, 1))
                 # Calculate the attention_mask matrix via the position index
-                attention_mask = F.cast(self.tensor_le(self.range, index), mstype.int32)
+                attention_mask = (self.tensor_le(self.range, index)).astype(mstype.int32)
                 attention_mask = self.expand_dims(attention_mask, 2)
             # Minus 10000 for the position where masked to exclude them from softmax
             multiplu_out = self.sub(
-                P.Cast()(F.tuple_to_array((1.0,)), P.DType()(attention_scores)),
-                P.Cast()(attention_mask, P.DType()(attention_scores)))
+                Tensor((1.0,)).astype(attention_scores.dtype),
+                attention_mask.astype(attention_scores.dtype))
 
             adder = self.mul(multiplu_out, self.multiply_data)
             attention_scores = self.add(adder, attention_scores)
 
         # attention probs
         attention_probs = self._softmax(attention_scores)
-        attention_probs = P.Cast()(attention_probs, ori_dtype)
+        attention_probs = attention_probs.astype(ori_dtype)
 
         attention_probs = self.prob_dropout(attention_probs)
         # Weighted sum output [bs, num_heads, seq_length, size_per_head]
-        weighted_values = self.batch_matmul(attention_probs, value)
+
+        weighted_values = self.batch_matmul(attention_probs.astype(self.dtype),
+                                            value.astype(self.dtype))
+        weighted_values = weighted_values.astype(self.softmax_dtype)
         attention_merge = self._merge_heads(weighted_values)
         return attention_merge
 
 
+
 # deprecated now
-class GPT2TransformerDecoderLayer(Cell):
+class BloomLayer(Cell):
     """
     pass
     """
@@ -532,7 +592,7 @@ class GPT2TransformerDecoderLayer(Cell):
                  moe_config=default_moe_config,
                  parallel_config=default_dpmp_config,
                  use_relative_positions=False):
-        super(GPT2TransformerDecoderLayer, self).__init__()
+        super().__init__()
         _check_moe_config(moe_config, parallel_config)
         self.use_moe = (moe_config.expert_num > 1)
 
@@ -572,23 +632,23 @@ class GPT2TransformerDecoderLayer(Cell):
         self.layernorm1.shard(((parallel_config.data_parallel, 1),))
         self.layernorm2 = LayerNorm((hidden_size,)).to_float(layernorm_compute_type)
         self.layernorm2.shard(((parallel_config.data_parallel, 1),))
-        self.attention = GPT2MultiHeadAttention(hidden_size=hidden_size,
-                                                num_heads=num_heads,
-                                                batch_size=batch_size,
-                                                src_seq_length=seq_length,
-                                                tgt_seq_length=seq_length,
-                                                hidden_dropout_rate=hidden_dropout_rate,
-                                                attention_dropout_rate=attention_dropout_rate,
-                                                use_past=use_past,
-                                                softmax_compute_type=softmax_compute_type,
-                                                param_init_type=param_init_type,
-                                                parallel_config=config_to_attention,
-                                                use_relative_positions=use_relative_positions,
-                                                in_param_init_func=in_param_init_func,
-                                                out_param_init_func=out_param_init_func)
+        self.attention = BloomAttention(hidden_size=hidden_size,
+                                        num_heads=num_heads,
+                                        batch_size=batch_size,
+                                        src_seq_length=seq_length,
+                                        tgt_seq_length=seq_length,
+                                        hidden_dropout_rate=hidden_dropout_rate,
+                                        attention_dropout_rate=attention_dropout_rate,
+                                        use_past=use_past,
+                                        softmax_compute_type=softmax_compute_type,
+                                        param_init_type=param_init_type,
+                                        parallel_config=config_to_attention,
+                                        use_relative_positions=use_relative_positions,
+                                        in_param_init_func=in_param_init_func,
+                                        out_param_init_func=out_param_init_func)
 
         # Feed Forward Network, FFN
-        self.output = GPT2FeedForward(hidden_size=hidden_size,
+        self.output = BloomFeedForward(hidden_size=hidden_size,
                                       dropout_rate=hidden_dropout_rate,
                                       ffn_hidden_size=ffn_hidden_size,
                                       hidden_act=hidden_act,
@@ -617,7 +677,7 @@ class GPT2TransformerDecoderLayer(Cell):
             self.mul = P.Mul().shard(((1, 1, 1, 1), (1,)))
             self.assign = P.Assign().shard(((1, 1, 1, 1), (1, 1, 1, 1)))
 
-    def construct(self, x, input_mask=None, init_reset=True, batch_valid_length=None):
+    def construct(self, x, alibi_tensor, input_mask=None, init_reset=True, batch_valid_length=None):
         """forward process"""
         if self.post_layernorm_residual:
             input_x = x
@@ -639,7 +699,7 @@ class GPT2TransformerDecoderLayer(Cell):
             input_x = F.depend(input_x, key_reset)
             input_x = F.depend(input_x, value_reset)
 
-        attention, layer_present = self.attention(input_x, input_x, input_x, input_mask,
+        attention, layer_present = self.attention(input_x, input_x, input_x, alibi_tensor, input_mask,
                                                   self.key_past, self.value_past, batch_valid_length)
         # For post-layernorm the inputs for residual path are output of self-attention and output of layernorm
         if self.post_layernorm_residual:

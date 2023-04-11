@@ -1,24 +1,24 @@
 model:
   model_config:
-    type: Gpt2Config
+    type: BloomConfig
     seq_length: 2048
-    vocab_size: 51200
-    embedding_size: 5120
-    num_layers: 40
-    num_heads: 40
+    vocab_size: 250880
+    embedding_size: 1024
+    num_layers: 24
+    num_heads: 16
     expand_ratio: 4
-    hidden_act: "fast_gelu"
+    hidden_act: "gelu"
     dropout_prob: 0.0
     hidden_dropout_prob: 0.1
     attention_probs_dropout_prob: 0.1
     initializer_range: 0.02
-    param_init_type: "float16"
+    param_init_type: "float32"
     layernorm_dtype: "float32"
-    softmax_dtype: "float16"
+    softmax_dtype: "float32"
     compute_dtype: "float16"
-    checkpoint_name_or_path: "gpt2_13b"
+    checkpoint_name_or_path: "gpt2"
     eos_token: 50256
     use_relative_positions: False
     per_stage_layers: 3
   arch:
-    type: GPT2LMHeadModel
+    type: BloomLMHeadModel
