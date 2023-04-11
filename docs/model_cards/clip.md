@@ -6,8 +6,6 @@ CLIP (Contrastive Lanuguage-Image Pre-Training)：是一种基于图文对进行
 
 [论文](https://arxiv.org/abs/2103.00020) Alec Radford, Jong Wook Kim, et al., Learning Transferable Visual Models From Natural Language Supervision, 2021.
 
-注：CLIP训练代码未开源，故MindFormers提供训练pretrain、finetune功能，但不不保证精度，目前仅对zero shot图片分类精度做了对齐。
-
 ## 数据集准备
 
 ### 预训练使用数据集：Flickr8k([链接](https://pan.baidu.com/s/1LRlQUL1MRipPL4MLOdExzg)，密码: s4be)
@@ -55,11 +53,9 @@ CLIP (Contrastive Lanuguage-Image Pre-Training)：是一种基于图文对进行
 
 - 脚本运行测试
 
-当前clip多卡精度有异常，仅支持单卡，后续版本会修复
-
 ```shell
 # pretrain
-python run_mindformer.py --config ./configs/clip/run_clip_vit_b_32_pretrain_flickr8k.yaml --run_mode train --dataset_dir [DATASET_PATH]
+python run_mindformer.py --config ./configs/clip/run_clip_vit_b_32_pretrain_flickr8k.yaml --run_mode train
 
 # evaluate
 python run_mindformer.py --config ./configs/clip/run_clip_vit_b_32_zero_shot_image_classification_cifar100.yaml --run_mode eval --dataset_dir [DATASET_PATH]
@@ -74,72 +70,60 @@ python run_mindformer.py --config ./configs/clip/run_clip_vit_b_32_zero_shot_ima
 
 - Model调用接口
 
-```python
-from mindformers import CLIPModel, CLIPConfig
+  ```python
+  from mindformers import CLIPModel, CLIPConfig
 
-CLIPModel.show_support_list()
-# 输出：
-# - support list of CLIPModel is:
-# -    ['clip_vit_b_32', 'clip_vit_B_16', 'clip_vit_l_14', 'clip_vit_l_14@336']
-# - -------------------------------------
+  CLIPModel.show_support_list()
+  # 输出：
+  # - support list of CLIPModel is:
+  # -    ['clip_vit_b_32', 'clip_vit_B_16', 'clip_vit_l_14', 'clip_vit_l_14@336']
+  # - -------------------------------------
 
-# 模型标志加载模型
-model = CLIPModel.from_pretrained("clip_vit_b_32")
+  # 模型标志加载模型
+  model = CLIPModel.from_pretrained("clip_vit_b_32")
 
-#模型配置加载模型
-config = CLIPConfig.from_pretrained("clip_vit_b_32")
-# {'text_config': {'hidden_size': 512, 'vocab_size': 49408, 'max_position_embeddings': 77,
-# 'num_hidden_layers': 12}, 'vision_config': {'hidden_size': 768, 'image_size': 224, 'patch_size': 32,
-# 'num_hidden_layers': 12}, 'projection_dim': 512, 'ratio': 64, 'checkpoint_name_or_path': 'clip_vit_b_32',
-# 'dtype': 'float16'}
-model = CLIPModel(config)
-```
+  #模型配置加载模型
+  config = CLIPConfig.from_pretrained("clip_vit_b_32")
+  # {'text_config': {'hidden_size': 512, 'vocab_size': 49408, 'max_position_embeddings': 77,
+  # 'num_hidden_layers': 12}, 'vision_config': {'hidden_size': 768, 'image_size': 224, 'patch_size': 32,
+  # 'num_hidden_layers': 12}, 'projection_dim': 512, 'ratio': 64, 'checkpoint_name_or_path': 'clip_vit_b_32',
+  # 'dtype': 'float16'}
+  model = CLIPModel(config)
+  ```
 
 - Trainer接口开启训练/评估/推理：
 
-```python
-from mindformers.trainer import Trainer
-from mindformers.tools.image_tools import load_image
-# 初始化预训练任务
-trainer = Trainer(task='contrastive_language_image_pretrain',
-    model='clip_vit_b_32',
-    train_dataset='./Flickr8k')
-trainer.train() # 开启预训练
+  ```python
+  from mindformers.trainer import Trainer
 
-#初始化零样本图像分类下游任务
-trainer = Trainer(task='zero_shot_image_classification',
-    model='clip_vit_b_32',
-    eval_dataset='./cifar-100-python')  
-img = load_image("https://ascend-repo-modelzoo.obs.cn-east-2.myhuaweicloud.com/XFormer_for_mindspore/clip/sunflower.png")
+  # 初始化预训练任务
+  trainer = Trainer(task='contrastive_language_image_pretrain',
+      model='clip_vit_b_32')
+  trainer.train() # 开启预训练
 
-# 方式1: 使用训练好的权重进行评估和推理
-trainer.evaluate(eval_checkpoint=True)
-predict_result = trainer.predict(predict_checkpoint=True, input_data=img, top_k=3)
-print(predict_result)
-
-# 方式2: 从obs下载训练好的权重并进行评估和推理
-trainer.evaluate()  #下载权重进行评估
-predict_result = trainer.predict(input_data=img, top_k=3)  #下载权重进行推理
-print(predict_result)
-```
+  #初始化零样本图像分类下游任务
+  trainer = Trainer(task='zero_shot_image_classification', model='clip_vit_b_32')
+  trainer.evaluate()  #进行评估
+  trainer.predict()  #进行推理
+  ```
 
 - pipeline接口开启快速推理
 
-```python
-from mindformers import pipeline
-from mindformers.tools.image_tools import load_image
+  ```python
+  from mindformers import pipeline
+  from mindformers.tools.image_tools import load_image
 
-classifier = pipeline("zero_shot_image_classification",
-                      model="clip_vit_b_32",
-                      candidate_labels=["sunflower", "tree", "dog", "cat", "toy"])
-img = load_image("https://ascend-repo-modelzoo.obs.cn-east-2."
-          "myhuaweicloud.com/XFormer_for_mindspore/clip/sunflower.png")
-classifier(img)
-# 输出
-# [[{'score': 0.99995565, 'label': 'sunflower'}, {'score': 2.5318595e-05, 'label': 'toy'},
-# {'score': 9.903885e-06, 'label': 'dog'}, {'score': 6.75336e-06, 'label': 'tree'},
-# {'score': 2.396818e-06, 'label': 'cat'}]]
-```
+  classifier = pipeline("zero_shot_image_classification",
+                        model="clip_vit_b_32",
+                        candidate_labels=["sunflower", "tree", "dog", "cat", "toy"])
+  img = load_image("https://ascend-repo-modelzoo.obs.cn-east-2."
+            "myhuaweicloud.com/XFormer_for_mindspore/clip/sunflower.png")
+  classifier(img)
+  # 输出
+  # [[{'score': 0.99995565, 'label': 'sunflower'}, {'score': 2.5318595e-05, 'label': 'toy'},
+  # {'score': 9.903885e-06, 'label': 'dog'}, {'score': 6.75336e-06, 'label': 'tree'},
+  # {'score': 2.396818e-06, 'label': 'cat'}]]
+  ```
 
 ## 模型性能
 
@@ -158,6 +142,6 @@ classifier(img)
 
 其余参数获取方式相同
 
-```shell
+```python
 python mindformers/models/clip/convert_weight.py --torch_path "PATH OF ViT-B/32.pt" --mindspore_path "SAVE PATH OF clip_vit_b_32.ckpt"
 ```

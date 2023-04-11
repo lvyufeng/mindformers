@@ -29,52 +29,40 @@ from mindformers.modules.transformer import Transformer, VocabEmbedding
 from mindformers.modules.transformer.moe import default_moe_config
 from mindformers.tools.register import MindFormerRegister, MindFormerModuleType
 from mindformers.models.base_model import BaseModel
-from mindformers.mindformer_book import MindFormerBook
-from mindformers.models.bert.bert_config import BertConfig
+from ...mindformer_book import MindFormerBook
+from .bert_config import BertConfig
 
-__all__ = ['BertConfig', 'BertModel', 'BertForPreTraining', 'BertForTokenClassification', 'BertForMultipleChoice',
+__all__ = ['BertConfig', 'BertModel', 'BertForPreTraining', 'BertTokenClassification', 'BertForMultipleChoice',
            'BertForQuestionAnswering']
 
 @MindFormerRegister.register(MindFormerModuleType.MODELS)
-class BertForTokenClassification(BaseModel):
+class BertTokenClassification(BaseModel):
     """
     Bert with dense layer for name entity recoginition task.
 
     Args:
-        config (BertConfig): The config of BertForTokenClassification.
+        config (BertConfig): The config of BertForPreTraining.
 
     Returns:
         Tensor, loss, logits.
-
     Examples:
-        >>> from mindformers import BertForTokenClassification, BertTokenizer
-        >>> model = BertForTokenClassification.from_pretrained('tokcls_bert_base_chinese')
-        >>> tokenizer = BertTokenizer.from_pretrained('tokcls_bert_base_chinese')
-        >>> data = tokenizer(["我在杭州华为工作。"], return_tensors='ms', max_length=128, padding='max_length')
+        >>> from mindformers import BertTokenClassification, BertTokenizer
+        >>> model = BertTokenClassification.from_pretrained('tokcls_bert_base_chinese')
+        >>> tokenizer = BertTokenizer.from_pretrained('tokcls_bert_base_chines')
+        >>> data = tokenizer("我在杭州华为工作。")
         >>> input_ids = data['input_ids']
-        >>> attention_mask = data['attention_mask']
-        >>> token_type_ids = data['token_type_ids']
-        >>> output = model(input_ids, attention_mask, token_type_ids)
+        >>> attention_mask = input_ids['attention_mask']
+        >>> token_type_ids = input_ids['token_type_ids']
+        >>> label_ids = input_ids['label_ids']
+        >>> output = model(input_ids, attention_mask, token_type_ids, label_ids)
         >>> print(output)
-        [[[ 0.0886748  -0.23066735 -0.03969013 ...  0.07333283 -0.02968273
-            0.06125224]
-          [-0.03115104 -0.47599065  0.01928361 ...  0.22821501  0.42415133
-            0.14563856]
-          [ 0.05570185 -0.36168078  0.00884905 ... -0.15357454 -0.33119604
-           -0.09889631]
-          ...
-          [ 0.01028904 -0.20403272 -0.1117363  ... -0.03601318  0.034153
-            0.12492958]
-          [-0.00420664 -0.1786235  -0.11332294 ... -0.07119732  0.02407441
-            0.14775723]
-          [-0.04674841 -0.1608555  -0.0781534  ... -0.06064402  0.0439388
-            0.20419256]]]
+        [0.6706]
     """
 
     _support_list = MindFormerBook.get_model_support_list()['tokcls']['bert']
 
     def __init__(self, config=BertConfig()):
-        super(BertForTokenClassification, self).__init__(config)
+        super(BertTokenClassification, self).__init__(config)
         self.num_labels = config.num_labels
         self.bert = BertModel(config, config.is_training, config.use_one_hot_embeddings)
         self.dropout = nn.Dropout(1 - config.hidden_dropout_prob)
@@ -117,22 +105,19 @@ class BertForPreTraining(BaseModel):
         Tensor, the loss of the network.
 
     Examples:
-        >>> from mindspore import Tensor
-        >>> import mindspore.common.dtype as mstype
-        >>> from mindformers import BertForPreTraining, BertTokenizer
+        >>> from mindformers import BertForPretraining, BertTokenizer
         >>> model = BertForPreTraining.from_pretrained('bert_base_uncased')
         >>> tokenizer = BertTokenizer.from_pretrained('bert_base_uncased')
-        >>> data = tokenizer(["Paris is the [MASK] of France."],
-        ...                  return_tensors='ms', max_length=128, padding="max_length")
+        >>> data = tokenizer("Paris is the [MASK] of France.")
         >>> input_ids = data['input_ids']
-        >>> attention_mask = data['attention_mask']
-        >>> token_type_ids = data['token_type_ids']
+        >>> attention_mask = input_ids['attention_mask']
+        >>> token_type_ids = input_ids['token_type_ids']
         >>> masked_lm_positions = Tensor([[4]], mstype.int32)
         >>> next_sentence_labels = Tensor([[1]], mstype.int32)
         >>> masked_lm_weights = Tensor([[1]], mstype.int32)
         >>> masked_lm_ids = Tensor([[3007]], mstype.int32)
-        >>> output = model(input_ids, attention_mask, token_type_ids, next_sentence_labels,
-        ...                masked_lm_positions, masked_lm_ids, masked_lm_weights)
+        >>> output = model(input_ids, attention_mask, token_type_ids, next_sentence_labels, \
+            masked_lm_positions, masked_lm_ids, masked_lm_weights)
         >>> print(output)
         [0.6706]
     """
@@ -307,7 +292,7 @@ class BertForMultipleChoice(BaseModel):
     Bert with dense layer for txt classification task.
 
     Args:
-        config (BertConfig): The config of BertForMultipleChoice.
+        config (BertConfig): The config of BertForPreTraining.
 
     Returns:
         Tensor, loss, logits.
@@ -315,14 +300,14 @@ class BertForMultipleChoice(BaseModel):
         >>> from mindformers import BertForMultipleChoice, BertTokenizer
         >>> model = BertForMultipleChoice.from_pretrained('txtcls_bert_base_uncased')
         >>> tokenizer = BertTokenizer.from_pretrained('txtcls_bert_base_uncased')
-        >>> data = tokenizer(["The new rights are nice enough-Everyone really likes the newest benefits "],
-        ...                  return_tensors='ms', max_length=128, padding='max_length')
+        >>> data = tokenizer("The new rights are nice enough-Everyone really likes the newest benefits ")
         >>> input_ids = data['input_ids']
-        >>> attention_mask = data['attention_mask']
-        >>> token_type_ids = data['token_type_ids']
-        >>> output = model(input_ids, attention_mask, token_type_ids)
+        >>> attention_mask = input_ids['attention_mask']
+        >>> token_type_ids = input_ids['token_type_ids']
+        >>> label_ids = input_ids['label_ids']
+        >>> output = model(input_ids, attention_mask, token_type_ids, label_ids)
         >>> print(output)
-        [[0.05121157 0.3273056  0.31614417]]
+        [0.6706, 0.5652, 0.7816]
     """
     _support_list = MindFormerBook.get_model_support_list()['txtcls']['bert']
 
@@ -341,7 +326,7 @@ class BertForMultipleChoice(BaseModel):
         self.compute_dtype = config.compute_dtype
         self.load_checkpoint(config)
 
-    def construct(self, input_ids, input_mask, token_type_id, label_ids=None):
+    def construct(self, input_ids, input_mask, token_type_id, label_ids):
         """Get Training Loss or Logits"""
         _, pooled_output, _ = self.bert(input_ids, token_type_id, input_mask)
         pooled_output = self.dropout(pooled_output)
@@ -375,18 +360,14 @@ class BertForQuestionAnswering(BaseModel):
             >>> from mindformers import BertForQuestionAnswering, BertTokenizer
             >>> model = BertForQuestionAnswering.from_pretrained('qa_bert_base_uncased')
             >>> tokenizer = BertTokenizer.from_pretrained('qa_bert_base_uncased')
-            >>> data = tokenizer(["The new rights are nice enough-Everyone really likes the newest benefits "],
-            ...                  return_tensors='ms', max_length=384, padding='max_length')
+            >>> data = tokenizer("The new rights are nice enough-Everyone really likes the newest benefits ")
             >>> input_ids = data['input_ids']
-            >>> attention_mask = data['attention_mask']
-            >>> token_type_ids = data['token_type_ids']
-            >>> output = model(input_ids, attention_mask, token_type_ids)
+            >>> attention_mask = input_ids['attention_mask']
+            >>> token_type_ids = input_ids['token_type_ids']
+            >>> label_ids = input_ids['label_ids']
+            >>> output = model(input_ids, attention_mask, token_type_ids, label_ids)
             >>> print(output)
-            (Tensor(shape=[1, 384], dtype=Float32, value=
-            [[ 5.30713797e-02,  1.08105361e-01,  1.55855455e-02 ... -3.73562761e-02,
-              -1.89271923e-02, -2.99206823e-02]]), Tensor(shape=[1, 384], dtype=Float32, value=
-            [[ 2.39873882e-02,  2.35675126e-01,  1.52210891e-01 ... -2.11214088e-02,
-               4.84664962e-02, -4.52579707e-02]]))
+            [0.6706, 0.5652, 0.7816]
         """
     _support_list = MindFormerBook.get_model_support_list()['qa']['bert']
 
@@ -396,7 +377,7 @@ class BertForQuestionAnswering(BaseModel):
         self.qa_outputs = nn.Dense(config.hidden_size, 2).to_float(config.compute_dtype)
         self.load_checkpoint(config)
 
-    def construct(self, input_ids, input_mask, token_type_id, start_position=None, end_position=None, unique_id=None):
+    def construct(self, input_ids, input_mask, token_type_id, start_position, end_position, unique_id):
         """Get Training Loss or Logits"""
         bert_outputs = self.bert(input_ids=input_ids, input_mask=input_mask, token_type_ids=token_type_id)
         sequence_output = bert_outputs[0]

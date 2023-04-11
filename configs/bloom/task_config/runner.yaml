@@ -21,7 +21,7 @@ runner_wrapper:
 
 # optimizer
 optimizer:
-  type: FusedAdamWeightDecay
+  type: FP32StateAdamWeightDecay
   beta1: 0.9
   beta2: 0.95
   eps: 0.00000001 # 1e-8
@@ -30,9 +30,9 @@ optimizer:
 # lr sechdule
 lr_schedule:
   type: polynomial
-  learning_rate: 0.0001
-  lr_end: 0.00001
-  warmup_steps: 0
+  learning_rate: 0.00005 # 0.00005
+  lr_end: 0.000001
+  warmup_steps: 2000
   total_steps: -1 # -1 means it will load the total steps of the dataset
 
 callbacks:
@@ -40,6 +40,6 @@ callbacks:
   - type: CheckpointMointor
     prefix: "mindformers"
     save_checkpoint_steps: 100
-    integrated_save: True
+    integrated_save: False
     async_save: False
   - type: ObsMonitor

@@ -148,23 +148,19 @@ class CFTS:
         ckpt_cb = CheckpointCallBack(prefix=prefix, directory=directory, **kwargs)
         return ckpt_cb.save_checkpoint()
 
-    def profile_monitor(self, start_step=1, stop_step=10,
-                        start_profile=True, profile_communication=False,
-                        profile_memory=True, **kwargs):
+    def profile_monitor(self, start_step=1, stop_step=5):
         """Profile Monitor."""
         if check_in_modelarts():
-            output_path = os.path.join(PROFILE_INFO_PATH)
+            output_path = os.path.join(PROFILE_INFO_PATH, 'rank_{}'.format(self.rank_id))
         else:
-            output_path = os.path.join(LOCAL_DEFAULT_PATH, 'profile')
+            output_path = os.path.join(LOCAL_DEFAULT_PATH, 'profile', 'rank_{}'.format(self.rank_id))
         format_path(output_path)
         if self.device_num > 1:
-            logger.info("Device number is %s > 1, so profile_communication and start_profile will be set True ")
-            profile_communication = True
-            start_profile = True
-        profile_cb = ProfileMonitor(
-            start_step, stop_step, start_profile=start_profile,
-            output_path=output_path, profile_communication=profile_communication,
-            profile_memory=profile_memory, **kwargs)
+            profile_cb = ProfileMonitor(
+                start_step, stop_step, output_path=output_path, profile_communication=True)
+        else:
+            profile_cb = ProfileMonitor(
+                start_step, stop_step, output_path=output_path)
         return profile_cb
 
     def obs_monitor(self):

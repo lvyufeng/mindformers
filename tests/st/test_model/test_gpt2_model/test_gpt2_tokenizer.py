@@ -22,7 +22,7 @@ import json
 import os
 import shutil
 import pytest
-from mindformers.models.gpt2.gpt2_tokenizer import GPT2Tokenizer
+from mindformers.models.gpt2.gpt2_tokenizer import Gpt2Tokenizer
 
 @pytest.mark.level0
 @pytest.mark.platform_x86_ascend_train
@@ -54,34 +54,34 @@ class TestGptTokenizerMethod:
 
     def test_from_pretrained(self):
         """
-        Feature: The GPT2Tokenizer test using from python class
+        Feature: The Gpt2Tokenizer test using from python class
         Description: Using call forward process of the tokenizer without error
         Expectation: The returned ret is not equal to [[6, 7]].
         """
-        tokenizer = GPT2Tokenizer.from_pretrained(self.output_path)
+        tokenizer = Gpt2Tokenizer.from_pretrained(self.output_path)
         tokenizer.show_support_list()
         tokenizer("hello world")
-        tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+        tokenizer = Gpt2Tokenizer.from_pretrained("gpt2")
         tokenizer("hello world")
 
     @pytest.mark.parametrize('skip_special_tokens', [True, False])
     def test_gpt_decode(self, skip_special_tokens):
         """
-        Feature: The GPT2Tokenizer test using auto_class
+        Feature: The Gpt2Tokenizer test using auto_class
         Description: Using call forward process of the tokenizer without error
         Expectation: The returned ret is not equal to [[6, 7]].
         """
-        tokenizer = GPT2Tokenizer.from_pretrained(self.output_path)
+        tokenizer = Gpt2Tokenizer.from_pretrained(self.output_path)
         res = tokenizer("hello world")["input_ids"]
         tokenizer.decode(res, skip_special_tokens=skip_special_tokens)
 
     def test_gpt__call__(self):
         """
-        Feature: The GPT2Tokenizer test call method
+        Feature: The Gpt2Tokenizer test call method
         Description: Using call forward process of the tokenizer without error
         Expectation: The returned ret is not equal to [[6, 7]].
         """
-        tokenizer = GPT2Tokenizer.from_pretrained(self.output_path)
+        tokenizer = Gpt2Tokenizer.from_pretrained(self.output_path)
         tokenizer("hello world", skip_special_tokens=True)
         tokenizer("hello world", skip_special_tokens=False)
 

@@ -35,16 +35,12 @@ from mindspore.nn.layer.activation import get_activation
 from mindspore.ops import functional as F
 from mindspore.ops import operations as P
 from mindspore.ops.primitive import constexpr
-# MindSpore 2.0 has changed the APIs of _checkparam, the following try except is for compatibility
-try:
-    from mindspore._checkparam import Validator
-except ImportError:
-    import mindspore._checkparam as Validator
+from mindspore._checkparam import Validator
 from mindspore.parallel._utils import _get_parallel_mode, _is_sharding_propagation
 from mindspore.context import ParallelMode
 
 from mindformers.tools.logger import logger
-from mindformers.tools.utils import is_version_ge
+from mindformers.tools.utils import is_version_le
 from mindformers.modules.transformer.op_parallel_config import default_dpmp_config, OpParallelConfig, MoEParallelConfig
 
 __all__ = [
@@ -236,23 +232,14 @@ class Dropout(nn.Cell):
         A Dropout Implements with P.DropoutGenMask and  P.DropoutDoMask for parallel training.
     """
 
-    def __init__(self, keep_prob=0.5, p=None, dtype=mstype.float32):
+    def __init__(self, keep_prob=0.5, dtype=mstype.float32):
         super(Dropout, self).__init__()
+        if keep_prob <= 0 or keep_prob > 1:
+            raise ValueError(
+                "dropout probability should be a number in range (0, 1], but got {}".format(
+                    keep_prob))
         Validator.check_subclass("dtype", dtype, mstype.number_type, self.cls_name)
         Validator.check_value_type('keep_prob', keep_prob, [float], self.cls_name)
-        if p is None:
-            logger.warning("For Dropout, this parameter `keep_prob` will be deprecated, please use `p` instead.")
-            Validator.check_value_type('keep_prob', keep_prob, [float], self.cls_name)
-            if keep_prob <= 0 or keep_prob > 1:
-                raise ValueError(f"For '{self.cls_name}', the 'keep_prob' must be a number in range (0, 1], "
-                                 f"but got {keep_prob}.")
-        else:
-            Validator.check_value_type('p', p, [float, int], self.cls_name)
-            if p < 0 or p >= 1:
-                raise ValueError(f"For '{self.cls_name}', the 'p' must be a number in range [0, 1), "
-                                 f"but got {p}.")
-            keep_prob = 1-p
-
         self.keep_prob = keep_prob
         self.is_ascend = context.get_context('device_target') in ["Ascend"]
         if self.is_ascend:
@@ -320,7 +307,7 @@ class LayerNorm(Cell):
             raise TypeError("The type of parameter 'param_init_type' should in [float32, float16], "
                             "but got the type : {}.".format(type(param_init_type)))
         # Since the mindspore 1.10 version, the layernorm has been changed to P.LayerNorm
-        if is_version_ge(mindspore.__version__, '1.10.0'):
+        if is_version_le(mindspore.__version__, '1.10.0'):
             self.is_self_defined = False
         else:
             self.is_self_defined = True

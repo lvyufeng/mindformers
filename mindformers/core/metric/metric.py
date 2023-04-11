@@ -125,8 +125,9 @@ class EntityScore(nn.Metric):
 @MindFormerRegister.register(MindFormerModuleType.METRIC)
 class SQuADMetric(nn.Metric):
     """Compute the f1, precision and recall score of each entity"""
-    def __init__(self, dataset_dir, n_best_size=20, max_answer_len=30, do_lower_case=True,
-                 temp_file_dir="./squad_temp"):
+    def __init__(self, dataset_dir, n_best_size=20, max_answer_length=30, do_lower_case=True,
+                 max_query_length=64, max_seq_length=384, doc_stride=128,
+                 version_2_with_negative=False, temp_file_dir="./squad_temp"):
         self.outputs = []
         self.temp_file_dir = temp_file_dir
         temp_examples_file = os.path.join(temp_file_dir, "temp_examples.json")
@@ -136,7 +137,12 @@ class SQuADMetric(nn.Metric):
         self.dev_file_path = os.path.join(dataset_dir, "dev-v1.1.json")
         self.basic_tokenizer = BasicTokenizer(do_lower_case)
         self.n_best_size = n_best_size
-        self.max_answer_len = max_answer_len
+        self.max_answer_length = max_answer_length
+        self.do_lower_case = do_lower_case
+        self.max_query_length = max_query_length
+        self.max_seq_length = max_seq_length
+        self.doc_stride = doc_stride
+        self.version_2_with_negative = version_2_with_negative
 
     def clear(self):
         """Clearing the internal evaluation result."""
@@ -314,7 +320,7 @@ class SQuADMetric(nn.Metric):
                     if end_index < start_index:
                         continue
                     length = end_index - start_index + 1
-                    if length > self.max_answer_len:
+                    if length > self.max_answer_length:
                         continue
                     prelim_predictions.append(
                         _PrelimPrediction(

@@ -19,6 +19,7 @@ from copy import deepcopy
 from typing import Optional, Union
 
 import numpy as np
+import pyhdfs
 import mindspore as ms
 from mindspore import Callback, Profiler
 from mindspore.train.callback import SummaryCollector
@@ -27,15 +28,15 @@ from mindspore.nn.learning_rate_schedule import LearningRateSchedule
 from mindformers.tools.register import MindFormerRegister, MindFormerModuleType
 from mindformers.tools.cloud_adapter.cloud_adapter import Local2ObsMonitor, CheckpointCallBack
 from mindformers.tools.logger import logger
-from mindformers.tools.utils import LOCAL_DEFAULT_PATH
+from mindformers.tools.utils import LOCAL_DEFAULT_PATH, sync_trans
 
-
-__all__ = ['ObsMonitor', 'MFLossMonitor', 'CheckpointMointor', 'SummaryMonitor', 'ProfileMonitor']
+__all__ = ['ObsMonitor', 'MFLossMonitor', 'CheckpointMointor', 'SummaryMonitor', 'ProfileMonitor', 'Local2HDFSMonitor']
 
 
 @MindFormerRegister.register(MindFormerModuleType.CALLBACK)
 class ObsMonitor:
     """Obs Monitor For AICC and Local"""
+
     def __new__(cls,
                 src_dir: str = None,
                 target_dir: str = None,
@@ -69,9 +70,8 @@ class MFLossMonitor(Callback):
     def __init__(self,
                  learning_rate: Optional[Union[float, LearningRateSchedule]] = None,
                  micro_batch_num: int = 1,
-                 origin_epochs: int = None,
-                 dataset_size: int = None,
-                 per_print_times: int = 1):
+                 per_print_times: int = 1,
+                 config=None):
         super(MFLossMonitor, self).__init__()
         self.per_print_times = per_print_times
         self.learning_rate = deepcopy(learning_rate)
@@ -82,8 +82,14 @@ class MFLossMonitor(Callback):
         self.step_time = time.time()
         self.epoch_time = time.time()
         self.run_context = None
-        self.steps_per_epoch = dataset_size
-        self.origin_epochs = origin_epochs
+        self.config = config
+
+        # convert to not sink_mode method to calculate epoch time
+        self.real_epoch_num = 1
+        self.real_epoch_end = False
+        self.real_epoch_need_init = True
+        self.real_epoch_time = 0
+        self.real_epoch_batch = 0
 
     def epoch_begin(self, run_context):
         """
@@ -95,6 +101,10 @@ class MFLossMonitor(Callback):
         self.loss_list = []
         self.epoch_time = time.time()
         self.run_context = run_context
+        if self.real_epoch_need_init:
+            self.real_epoch_time = 0
+            self.real_epoch_batch = 0
+            self.real_epoch_need_init = False
 
     def epoch_end(self, run_context):
         """
@@ -107,9 +117,18 @@ class MFLossMonitor(Callback):
         epoch_mseconds = (time.time() - self.epoch_time) * 1000
         per_step_mseconds = epoch_mseconds / callback_params.batch_num
         logger.info(
-            "Epoch time: %5.3f ms, "
             "per step time: %5.3f ms, "
-            "avg loss: %5.3f", epoch_mseconds, per_step_mseconds, np.mean(self.loss_list))
+            "avg loss: %5.3f", per_step_mseconds, np.mean(self.loss_list))
+        self.real_epoch_time += epoch_mseconds
+        self.real_epoch_batch += callback_params.batch_num
+        if self.real_epoch_end:
+            per_step_cost = self.real_epoch_time // self.real_epoch_batch
+            logger.info(
+                "Epoch time: %5.3f ms, "
+                "per step time: %5.3f ms, "
+                "avg loss: %5.3f", self.real_epoch_time, per_step_cost, np.mean(self.loss_list))
+            self.real_epoch_end = False
+            self.real_epoch_need_init = True
 
     def step_begin(self, run_context):
         """
@@ -152,9 +171,9 @@ class MFLossMonitor(Callback):
             loss = np.mean(loss.asnumpy())
 
         pipeline_stages = ms.context.get_auto_parallel_context("pipeline_stages")
-        if pipeline_stages > 1 and self.print_warning_flag:
-            logger.warning("pipeline stages: %s > 1, the loss on the last card is valid.",
-                           pipeline_stages)
+        if pipeline_stages > 1:
+            logger.info("pipeline stages: %s > 1, the loss on the last card is valid.",
+                        pipeline_stages)
             loss = loss / self.mirco_size
 
         self.loss_list.append(loss)
@@ -168,18 +187,6 @@ class MFLossMonitor(Callback):
             overflow = "False"
         if not scaling_sens:
             scaling_sens = "unavailable"
-
-        if cb_params.dataset_sink_mode:
-            origin_epochs = self.origin_epochs
-            steps_per_epoch = self.steps_per_epoch
-
-            cur_epoch_num = (cb_params.cur_step_num - 1) // steps_per_epoch + 1
-            cur_step_num = (cb_params.cur_step_num - 1) % steps_per_epoch + 1
-        else:
-            origin_epochs = cb_params.epoch_num
-            steps_per_epoch = cb_params.batch_num
-            cur_step_num = cur_step_in_epoch
-            cur_epoch_num = cb_params.cur_epoch_num
 
         def print_output_info():
             if self.learning_rate is not None:
@@ -216,20 +223,28 @@ class MFLossMonitor(Callback):
                     self.print_warning_flag = False
                 current_lr = None
 
+            origin_epoch = self.config.origin_epoch
+            epoch_batch_size = self.config.epoch_batch_size
+            current_epoch = ((cb_params.cur_epoch_num - 1) * cur_step_in_epoch) // epoch_batch_size % origin_epoch + 1
+            current_step_in_epoch = ((cb_params.cur_epoch_num - 1) * cur_step_in_epoch) % epoch_batch_size
             if current_lr is not None:
                 logger.info(
                     "Epoch:[%3d/%3d], step:[%5d/%5d], "
                     "loss:[%5.3f/%5.3f], time:%5.3f ms, "
-                    "lr:%s, overflow cond: %s, loss_scale: %s", cur_epoch_num, origin_epochs,
-                    cur_step_num, steps_per_epoch, loss, np.mean(self.loss_list),
+                    "lr:%s, overflow cond: %s, loss_scale: %s", current_epoch, origin_epoch,
+                    current_step_in_epoch, epoch_batch_size, loss, np.mean(self.loss_list),
                     step_mseconds, current_lr, overflow, scaling_sens)
             else:
                 logger.info(
                     "Epoch:[%3d/%3d], step:[%5d/%5d], "
                     "loss:[%5.3f/%5.3f], time:%5.3f ms, "
-                    "overflow cond: %s, loss_scale: %s", cur_epoch_num, origin_epochs,
-                    cur_step_num, steps_per_epoch, loss, np.mean(self.loss_list),
+                    "overflow cond: %s, loss_scale: %s", current_epoch, origin_epoch,
+                    current_step_in_epoch, epoch_batch_size, loss, np.mean(self.loss_list),
                     step_mseconds, overflow, scaling_sens)
+
+            if (current_step_in_epoch + 1) % epoch_batch_size == 0:
+                self.real_epoch_num = current_epoch
+                self.real_epoch_end = True
 
         if (cb_params.cur_step_num - self.last_print_time) >= self.per_print_times:
             self.last_print_time = cb_params.cur_step_num
@@ -242,6 +257,7 @@ class MFLossMonitor(Callback):
 @MindFormerRegister.register(MindFormerModuleType.CALLBACK)
 class SummaryMonitor:
     """Summary Monitor For AICC and Local"""
+
     def __new__(cls,
                 summary_dir=None,
                 collect_freq=10,
@@ -277,6 +293,7 @@ class SummaryMonitor:
 @MindFormerRegister.register(MindFormerModuleType.CALLBACK)
 class CheckpointMointor:
     """Checkpoint Monitor For AICC and Local"""
+
     def __new__(cls,
                 prefix='CKP',
                 directory=None,
@@ -292,7 +309,6 @@ class CheckpointMointor:
                 enc_key=None,
                 enc_mode='AES-GCM',
                 exception_save=False):
-
         rank_id = int(os.getenv("DEVICE_ID", '0'))
         prefix = prefix + "_rank_{}".format(rank_id)
 
@@ -327,26 +343,19 @@ class ProfileMonitor(Callback):
     """
     Profile analysis in training.
     """
-    def __init__(self, start_step=1, stop_step=10,
-                 output_path=None, start_profile=True,
-                 profile_communication=False, profile_memory=True, **kwargs):
+
+    def __init__(self, start_step=1, stop_step=10, output_path=None, profile_communication=False):
         super(ProfileMonitor, self).__init__()
         self.start_step = start_step
         self.stop_step = stop_step
-        self.start_profile = start_profile
-        self.profile_communication = profile_communication
-
-        if profile_communication and not start_profile:
-            raise ValueError("When profile_communication is True, start_profile must also be True")
-
-        output_path = os.path.join(LOCAL_DEFAULT_PATH, 'profile') if output_path is None else output_path
-
-        self.profiler = Profiler(
-            start_profile=start_profile, output_path=output_path,
-            profile_communication=profile_communication, profile_memory=profile_memory, **kwargs)
-
+        if output_path is not None:
+            assert isinstance(output_path, str) and os.path.realpath(output_path), \
+                f"output path must be real path, but get {output_path}"
+            self.profiler = Profiler(
+                start_profile=False, output_path=output_path, profile_communication=profile_communication)
+        else:
+            self.profiler = Profiler(start_profile=False)
         self.run_context = None
-        self.output_path = output_path
 
     def step_begin(self, run_context):
         """
@@ -357,7 +366,7 @@ class ProfileMonitor(Callback):
         """
         cb_params = run_context.original_args()
         step_num = cb_params.cur_step_num
-        if step_num == self.start_step and not self.start_profile:
+        if step_num == self.start_step:
             self.profiler.start()
 
     def step_end(self, run_context):
@@ -372,6 +381,119 @@ class ProfileMonitor(Callback):
         if step_num == self.stop_step:
             self.profiler.stop()
             self.profiler.analyse()
-            logger.info("End of Profiling, please view the profile data under %s and analyze it using mindinsight."
-                        "MindInsight order as follow: "
-                        "mindinsight start --summary-base-dir %s", self.output_path, self.output_path)
+            raise SystemExit("profile analysis is end, exit!!!")
+
+
+@MindFormerRegister.register(MindFormerModuleType.CALLBACK)
+class Local2HDFSMonitor(Callback):
+    """
+    Upload checkpoint file to HDFS.
+    """
+
+    def __init__(self, hosts, user_name,
+                 local_checkpoint_dir: str = './output',
+                 save_checkpoint_dir: str = '/hdfs_checkpoint',
+                 upload_per_step: int = 10,
+                 async_upload: bool = False):
+        super(Local2HDFSMonitor, self).__init__()
+        self.hosts = hosts
+        self.user_name = user_name
+        self.local_checkpoint_dir = local_checkpoint_dir
+        self.save_checkpoint_dir = save_checkpoint_dir
+        self.upload_per_step = upload_per_step
+        self.rank_id = os.getenv("RANK_ID", '0')
+        self.run_context = None
+        self.async_upload = async_upload
+        self.pro = None
+
+        self.local_simulation = False
+
+        # 本地模拟注释下面三行
+        if not self.local_simulation:
+            self._register_hdfs()
+            self._check_hdfs_client()
+            self._make_dirs_hdfs()
+
+    def _make_dirs_hdfs(self):
+        """Make directory in HDFS."""
+        if not self.hdfs.exists(self.save_checkpoint_dir):
+            self.hdfs.mkdirs(self.save_checkpoint_dir)
+        if not self.hdfs.exists(os.path.join(self.save_checkpoint_dir, self.rank_id)):
+            self.hdfs.mkdirs(os.path.join(self.save_checkpoint_dir, self.rank_id))
+
+    def _check_hdfs_client(self):
+        """Check hdfs client."""
+        if self.hdfs is None:
+            raise NotImplementedError("HDFS client not register, hdfs is None.")
+
+    def _register_hdfs(self, retry: int = 5):
+        """Register HDFS."""
+        for i in range(retry):
+            try:
+                self.hdfs = pyhdfs.HdfsClient(
+                    hosts=self.hosts, user_name=self.user_name)
+            except RuntimeError as error:
+                logger.error("%s", error)
+                logger.info("HDFS register failed, will retry the %s times.", i)
+                continue
+            break
+
+    def _upload_local_to_hdfs(self, local_file, hdfs_file, retry: int = 5):
+        """upload local file to hdfs."""
+        for i in range(retry):
+            try:
+                # 本地模拟代码
+                if self.local_simulation:
+                    import shutil
+                    shutil.copy(local_file, hdfs_file)
+                else:
+                    self.hdfs.copy_from_local(local_file, hdfs_file)
+                logger.info("From %s to %s is success.", local_file, hdfs_file)
+            except RuntimeError as error:
+                logger.error("%s", error)
+                logger.info("From local_file: %s to hdfs_file: %s failed, will retry the %s times.",
+                            local_file, hdfs_file, i)
+                continue
+            if self.hdfs.exists(hdfs_file):
+                return 1
+        return 0
+
+    def _convert_hdfs_file_path(self, hdfs_dir, local_files):
+        """Get hdfs file path list."""
+        return [os.path.join(hdfs_dir, self.rank_id, local_file[1]) for local_file in local_files]
+
+    def step_end(self, run_context):
+        """
+        Stop profile at the end of step.
+
+        Args:
+            run_context (RunContext): Context of the train running.
+        """
+        cb_params = run_context.original_args()
+        step_num = cb_params.cur_step_num
+        if step_num % self.upload_per_step == 0:
+            if self.async_upload:
+                if self.pro:
+                    self.pro.join()
+                self.pro = self.sync_upload_ckpt()
+            else:
+                self.upload()
+
+    @sync_trans
+    def sync_upload_ckpt(self):
+        """Sync upload checkpoint file."""
+        self.upload()
+
+    def upload(self):
+        """Upload checkpoint file."""
+        logger.info("Start upload the checkpoint file to hdfs.")
+        checkpoint_files = [[os.path.join(root_dir, file), file]
+                            for root_dir, _, files in os.walk(self.local_checkpoint_dir) for file in files
+                            if file.endswith('.ckpt')]
+        hdfs_checkpoint_files = self._convert_hdfs_file_path(self.save_checkpoint_dir, checkpoint_files)
+
+        upload_status = [self._upload_local_to_hdfs(checkpoint_files[i], hdfs_checkpoint_files[i])
+                         for i in range(len(checkpoint_files))]
+        logger.info("The current number of upload ckpt files is %s, with %s successful and %s failed",
+                    len(checkpoint_files), sum(upload_status),
+                    len(checkpoint_files) - sum(upload_status))

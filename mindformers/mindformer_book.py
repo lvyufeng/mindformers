@@ -94,10 +94,6 @@ class MindFormerBook:
                 _PROJECT_PATH, "configs/vit/run_vit_base_p16_224_100ep.yaml")),
             ("swin_base_p4w7", os.path.join(
                 _PROJECT_PATH, "configs/swin/run_swin_base_p4w7_224_100ep.yaml")),
-            ("mindspore/vit_base_p16", os.path.join(
-                _PROJECT_PATH, "configs/vit/run_vit_base_p16_224_100ep.yaml")),
-            ("mindspore/swin_base_p4w7", os.path.join(
-                _PROJECT_PATH, "configs/swin/run_swin_base_p4w7_224_100ep.yaml")),
             ("common", os.path.join(
                 _PROJECT_PATH, "configs/vit/run_vit_base_p16_224_100ep.yaml"))])
          ),
@@ -112,8 +108,6 @@ class MindFormerBook:
         ("contrastive_language_image_pretrain", OrderedDict([
             ("clip_vit_b_32", os.path.join(
                 _PROJECT_PATH, "configs/clip/run_clip_vit_b_32_pretrain_flickr8k.yaml")),
-            ("mindspore/clip_vit_b_32", os.path.join(
-                _PROJECT_PATH, "configs/clip/run_clip_vit_b_32_pretrain_flickr8k.yaml")),
             ("clip_vit_b_16", os.path.join(
                 _PROJECT_PATH, "configs/clip/run_clip_vit_b_16_pretrain_flickr8k.yaml")),
             ("clip_vit_l_14", os.path.join(
@@ -126,14 +120,12 @@ class MindFormerBook:
         ("zero_shot_image_classification", OrderedDict([
             ("clip_vit_b_32", os.path.join(
                 _PROJECT_PATH, "configs/clip/run_clip_vit_b_32_zero_shot_image_classification_cifar100.yaml")),
-            ("mindspore/clip_vit_b_32", os.path.join(
-                _PROJECT_PATH, "configs/clip/run_clip_vit_b_32_zero_shot_image_classification_cifar100.yaml")),
             ("clip_vit_b_16", os.path.join(
                 _PROJECT_PATH, "configs/clip/run_clip_vit_b_16_zero_shot_image_classification_cifar100.yaml")),
             ("clip_vit_l_14", os.path.join(
-                _PROJECT_PATH, "configs/clip/run_clip_vit_l_14_zero_shot_image_classification_cifar100.yaml")),
+                _PROJECT_PATH, "configs/clip/run_clip_vit_b_14_zero_shot_image_classification_cifar100.yaml")),
             ("clip_vit_l_14@336", os.path.join(
-                _PROJECT_PATH, "configs/clip/run_clip_vit_l_14@336_zero_shot_image_classification_cifar100.yaml")),
+                _PROJECT_PATH, "configs/clip/run_clip_vit_b_14@336_zero_shot_image_classification_cifar100.yaml")),
             ("common", os.path.join(
                 _PROJECT_PATH, "configs/clip/run_clip_vit_b_32_zero_shot_image_classification_cifar100.yaml"))])
          ),
@@ -146,8 +138,6 @@ class MindFormerBook:
         ("text_classification", OrderedDict([
             ("txtcls_bert_base_uncased", os.path.join(
                 _PROJECT_PATH, "configs/txtcls/run_txtcls_bert_base_uncased.yaml")),
-            ("mindspore/txtcls_bert_base_uncased_mnli", os.path.join(
-                _PROJECT_PATH, "configs/txtcls/run_txtcls_bert_base_uncased_mnli.yaml")),
             ("common", os.path.join(
                 _PROJECT_PATH, "configs/txtcls/run_txtcls_bert_base_uncased.yaml"))])
          ),
@@ -160,16 +150,8 @@ class MindFormerBook:
         ("question_answering", OrderedDict([
             ("qa_bert_base_uncased", os.path.join(
                 _PROJECT_PATH, "configs/qa/run_qa_bert_base_uncased.yaml")),
-            ("mindspore/qa_bert_base_uncased", os.path.join(
-                _PROJECT_PATH, "configs/qa/run_qa_bert_base_uncased.yaml")),
             ("common", os.path.join(
                 _PROJECT_PATH, "configs/qa/run_qa_bert_base_uncased.yaml"))])
-         ),
-        ("text_generation", OrderedDict([
-            ("gpt2", os.path.join(
-                _PROJECT_PATH, "configs/gpt2/run_gpt2.yaml")),
-            ("common", os.path.join(
-                _PROJECT_PATH, "configs/gpt2/run_gpt2.yaml"))])
          )
     ])
 
@@ -177,8 +159,6 @@ class MindFormerBook:
         ('zero_shot_image_classification', OrderedDict([
             ('clip_vit_b_16', os.path.join(
                 _PROJECT_PATH, "configs/clip/model_config/clip_vit_b_16.yaml")),
-            ('mindspore/clip_vit_b_32', os.path.join(
-                _PROJECT_PATH, "configs/clip/model_config/clip_vit_b_32.yaml")),
             ('clip_vit_b_32', os.path.join(
                 _PROJECT_PATH, "configs/clip/model_config/clip_vit_b_32.yaml")),
             ('clip_vit_l_14', os.path.join(
@@ -192,10 +172,6 @@ class MindFormerBook:
             ('vit_base_p16', os.path.join(
                 _PROJECT_PATH, "configs/vit/model_config/vit_base_p16.yaml")),
             ("swin_base_p4w7", os.path.join(
-                _PROJECT_PATH, "configs/swin/model_config/swin_base_p4w7.yaml")),
-            ('mindspore/vit_base_p16', os.path.join(
-                _PROJECT_PATH, "configs/vit/model_config/vit_base_p16.yaml")),
-            ("mindspore/swin_base_p4w7", os.path.join(
                 _PROJECT_PATH, "configs/swin/model_config/swin_base_p4w7.yaml")),
             ('common', os.path.join(
                 _PROJECT_PATH, "configs/vit/model_config/vit_base_p16.yaml"))
@@ -217,30 +193,14 @@ class MindFormerBook:
         ("text_classification", OrderedDict([
             ("txtcls_bert_base_uncased", os.path.join(
                 _PROJECT_PATH, "configs/txtcls/run_txtcls_bert_base_uncased.yaml")),
-            ("mindspore/txtcls_bert_base_uncased_mnli", os.path.join(
-                _PROJECT_PATH, "configs/txtcls/model_config/txtcls_bert_base_uncased_mnli.yaml")),
             ("common", os.path.join(
                 _PROJECT_PATH, "configs/txtcls/run_txtcls_bert_base_uncased.yaml"))
         ])),
         ("token_classification", OrderedDict([
             ("tokcls_bert_base_chinese", os.path.join(
                 _PROJECT_PATH, "configs/tokcls/run_tokcls_bert_base_chinese.yaml")),
-            ("tokcls_bert_base_chinese_cluener", os.path.join(
-                _PROJECT_PATH, "configs/tokcls/model_config/tokcls_bert_base_chinese_cluener.yaml")),
             ("common", os.path.join(
                 _PROJECT_PATH, "configs/tokcls/run_tokcls_bert_base_chinese.yaml"))
-        ])),
-        ("question_answering", OrderedDict([
-            ("qa_bert_base_uncased", os.path.join(
-                _PROJECT_PATH, "configs/qa/run_qa_bert_base_uncased.yaml")),
-            ("common", os.path.join(
-                _PROJECT_PATH, "configs/qa/run_qa_bert_base_uncased.yaml"))
-        ])),
-        ("text_generation", OrderedDict([
-            ("gpt2", os.path.join(
-                _PROJECT_PATH, "configs/gpt2/run_gpt2.yaml")),
-            ("common", os.path.join(
-                _PROJECT_PATH, "configs/gpt2/run_gpt2.yaml"))
         ]))
     ])
 
@@ -249,17 +209,16 @@ class MindFormerBook:
             'clip_vit_b_32',
             'clip_vit_b_16',
             'clip_vit_l_14',
-            'clip_vit_l_14@336',
-            'mindspore/clip_vit_b_32'
+            'clip_vit_l_14@336'
         ]),
         ('mae', [
             'mae_vit_base_p16',
         ]),
         ('vit', [
-            'vit_base_p16', 'mindspore/vit_base_p16'
+            'vit_base_p16', 'mae_vit_base_p16'
         ]),
         ('swin', [
-            'swin_base_p4w7', 'mindspore/swin_base_p4w7'
+            'swin_base_p4w7',
         ]),
         ('bert', [
             'bert_base_uncased',
@@ -267,13 +226,11 @@ class MindFormerBook:
         ]),
         ('tokcls', OrderedDict([
             ('bert', ['tokcls_bert_base_chinese',
-                      'tokcls_bert_base_chinese_cluener',
-                      'mindspore/tokcls_bert_base_chinese_cluener'])
+                      'tokcls_bert_base_chinese_cluener'])
         ])),
         ('txtcls', OrderedDict([
             ('bert', ['txtcls_bert_base_uncased',
-                      'txtcls_bert_base_uncased_mnli',
-                      'mindspore/txtcls_bert_base_uncased_mnli'])
+                      'txtcls_bert_base_uncased_mnli'])
         ])),
         ('qa', OrderedDict([
             ('bert', ['qa_bert_base_uncased',
@@ -295,19 +252,16 @@ class MindFormerBook:
             'clip_vit_b_32',
             'clip_vit_b_16',
             'clip_vit_l_14',
-            'clip_vit_l_14@336',
-            'mindspore/clip_vit_b_32'
+            'clip_vit_l_14@336'
         ]),
         ('mae', [
             'mae_vit_base_p16',
         ]),
         ('vit', [
-            'vit_base_p16',
-            'mindspore/vit_base_p16',
-            'mae_vit_base_p16'
+            'vit_base_p16', 'mae_vit_base_p16'
         ]),
         ('swin', [
-            'swin_base_p4w7', 'mindspore/swin_base_p4w7'
+            'swin_base_p4w7',
         ]),
         ('bert', [
             'bert_base_uncased',
@@ -315,13 +269,11 @@ class MindFormerBook:
         ]),
         ('tokcls', OrderedDict([
             ('bert', ['tokcls_bert_base_chinese',
-                      'tokcls_bert_base_chinese_cluener',
-                      'mindspore/tokcls_bert_base_chinese_cluener'])
+                      'tokcls_bert_base_chinese_cluener'])
         ])),
         ('txtcls', OrderedDict([
             ('bert', ['txtcls_bert_base_uncased',
-                      'txtcls_bert_base_uncased_mnli',
-                      'mindspore/txtcls_bert_base_uncased_mnli'])
+                      'txtcls_bert_base_uncased_mnli'])
         ])),
         ('qa', OrderedDict([
             ('bert', ['qa_bert_base_uncased',
@@ -343,36 +295,20 @@ class MindFormerBook:
             'clip_vit_b_32',
             'clip_vit_b_16',
             'clip_vit_l_14',
-            'clip_vit_l_14@336',
-            'mindspore/clip_vit_b_32'
+            'clip_vit_l_14@336'
         ]),
         ('vit', [
-            'vit_base_p16',
-            'mindspore/vit_base_p16',
+            'vit_base_p16', 'mae_vit_base_p16'
         ]),
         ('swin', [
             'swin_base_p4w7',
-            'mindspore/swin_base_p4w7',
         ]),
         ('bert', [
             'bert_base_uncased',
             'bert_tiny_uncased',
         ]),
-        ('tokcls', OrderedDict([
-            ('bert', ['tokcls_bert_base_chinese',
-                      'tokcls_bert_base_chinese_cluener',
-                      'mindspore/tokcls_bert_base_chinese_cluener'])
-        ])),
-        ('txtcls', OrderedDict([
-            ('bert', ['txtcls_bert_base_uncased',
-                      'txtcls_bert_base_uncased_mnli',
-                      'mindspore/txtcls_bert_base_uncased_mnli'])
-        ])),
         ('t5', [
             't5_small',
-        ]),
-        ('gpt2', [
-            'gpt2',
         ])
     ])
 
@@ -381,8 +317,7 @@ class MindFormerBook:
             'clip_vit_b_32',
             'clip_vit_b_16',
             'clip_vit_l_14',
-            'clip_vit_l_14@336',
-            'mindspore/clip_vit_b_32'
+            'clip_vit_l_14@336'
         ]),
         ('bert', [
             'bert_base_uncased',
@@ -390,13 +325,11 @@ class MindFormerBook:
         ]),
         ('tokcls', OrderedDict([
             ('bert', ['tokcls_bert_base_chinese',
-                      'tokcls_bert_base_chinese_cluener',
-                      'mindspore/tokcls_bert_base_chinese_cluener'])
+                      'tokcls_bert_base_chinese_cluener'])
         ])),
         ('txtcls', OrderedDict([
             ('bert', ['txtcls_bert_base_uncased',
-                      'txtcls_bert_base_uncased_mnli',
-                      'mindspore/txtcls_bert_base_uncased_mnli'])
+                      'txtcls_bert_base_uncased_mnli'])
         ])),
         ('qa', OrderedDict([
             ('bert', ['qa_bert_base_uncased',
@@ -418,8 +351,6 @@ class MindFormerBook:
          ['https://ascend-repo-modelzoo.obs.cn-east-2.myhuaweicloud.com'
           '/XFormer_for_mindspore/clip/clip_vit_b_32.ckpt'
           ]),
-        ('mindspore/clip_vit_b_32',
-         ['https://xihe.mindspore.cn/api/v1/repo/model/MindSpore/clip_vit_b_32/file/clip_vit_b_32.ckpt']),
         ('clip_vit_b_16',
          ['https://ascend-repo-modelzoo.obs.cn-east-2.myhuaweicloud.com'
           '/MindFormers/clip/clip_vit_b_16.ckpt'
@@ -440,14 +371,10 @@ class MindFormerBook:
          ['https://ascend-repo-modelzoo.obs.cn-east-2.myhuaweicloud.com'
           '/XFormer_for_mindspore/vit/vit_base_p16.ckpt'
           ]),
-        ('mindspore/vit_base_p16',
-         ['https://xihe.mindspore.cn/api/v1/repo/model/MindSpore/vit_base_p16/file/vit_base_p16.ckpt']),
         ('swin_base_p4w7',
          ['https://ascend-repo-modelzoo.obs.cn-east-2.myhuaweicloud.com'
           '/XFormer_for_mindspore/swin/swin_base_p4w7.ckpt'
           ]),
-        ('mindspore/swin_base_p4w7',
-         ['https://xihe.mindspore.cn/api/v1/repo/model/MindSpore/swin_base_p4w7/file/swin_base_p4w7.ckpt']),
         ('t5_small',
          ['https://ascend-repo-modelzoo.obs.cn-east-2.myhuaweicloud.com'
           '/XFormer_for_mindspore/t5/mindspore_model.ckpt'
@@ -470,9 +397,6 @@ class MindFormerBook:
           '/XFormer_for_mindspore/bert/downstream_tasks/token_classification/'
           'tokcls_bert_base_chinese_cluener.ckpt'
           ]),
-        ('mindspore/tokcls_bert_base_chinese_cluener',
-         ['https://xihe.mindspore.cn/api/v1/repo/model/MindSpore/tokcls_bert_base_chineses_cluener/'
-          'file/tokcls_bert_base_chinese_cluener.ckpt']),
         ('txtcls_bert_base_uncased',
          ['https://ascend-repo-modelzoo.obs.cn-east-2.myhuaweicloud.com'
           '/XFormer_for_mindspore/bert/downstream_tasks/txtcls/txtcls_bert_base_uncased.ckpt'
@@ -481,10 +405,6 @@ class MindFormerBook:
          ['https://ascend-repo-modelzoo.obs.cn-east-2.myhuaweicloud.com'
           '/XFormer_for_mindspore/bert/downstream_tasks/txtcls/'
           'txtcls_bert_base_uncased_mnli.ckpt'
-          ]),
-        ('mindspore/txtcls_bert_base_uncased_mnli',
-         ['https://xihe.mindspore.cn/'
-          'api/v1/repo/model/MindSpore/txtcls_bert_base_uncased_mnli/file/txtcls_bert_base_uncased_mnli.ckpt'
           ]),
         ('qa_bert_base_uncased',
          ['https://ascend-repo-modelzoo.obs.cn-east-2.myhuaweicloud.com'
@@ -586,9 +506,6 @@ class MindFormerBook:
             "https://ascend-repo-modelzoo.obs.cn-east-2.myhuaweicloud.com/"
             "XFormer_for_mindspore/clip/bpe_simple_vocab_16e6.txt.gz"
         ]),
-        ('mindspore/clip_vit_b_32', [
-            "https://xihe.mindspore.cn/api/v1/repo/model/MindSpore/clip_vit_b_32/file/bpe_simple_vocab_16e6.txt.gz"
-        ]),
         ('clip_vit_b_16', [
             "https://ascend-repo-modelzoo.obs.cn-east-2.myhuaweicloud.com/"
             "XFormer_for_mindspore/clip/bpe_simple_vocab_16e6.txt.gz"
@@ -621,9 +538,6 @@ class MindFormerBook:
             "https://ascend-repo-modelzoo.obs.cn-east-2.myhuaweicloud.com/"
             "XFormer_for_mindspore/bert/bert_base_chinese/vocab.txt"
         ]),
-        ('mindspore/tokcls_bert_base_chinese_cluener', [
-            "https://xihe.mindspore.cn/api/v1/repo/model/MindSpore/tokcls_bert_base_chineses_cluener/file/vocab.txt"
-        ]),
         ('txtcls_bert_base_uncased', [
             "https://ascend-repo-modelzoo.obs.cn-east-2.myhuaweicloud.com/"
             "XFormer_for_mindspore/bert/bert_base_english/vocab.txt"
@@ -631,9 +545,6 @@ class MindFormerBook:
         ('txtcls_bert_base_uncased_mnli', [
             "https://ascend-repo-modelzoo.obs.cn-east-2.myhuaweicloud.com/"
             "XFormer_for_mindspore/bert/bert_base_english/vocab.txt"
-        ]),
-        ('mindspore/txtcls_bert_base_uncased_mnli', [
-            "https://xihe.mindspore.cn/api/v1/repo/model/MindSpore/txtcls_bert_base_uncased_mnli/file/vocab.txt"
         ]),
         ('qa_bert_base_uncased',
          ['https://ascend-repo-modelzoo.obs.cn-east-2.myhuaweicloud.com/'
@@ -789,11 +700,6 @@ class MindFormerBook:
     def get_project_path(cls):
         """get_project_path function"""
         return cls._PROJECT_PATH
-
-    @classmethod
-    def get_xihe_checkpoint_download_folder(cls):
-        """get xihe's mindspore checkpoint download folder."""
-        return os.path.join(cls._DEFAULT_CHECKPOINT_DOWNLOAD_FOLDER, 'mindspore')
 
     @classmethod
     def show_default_checkpoint_download_folder(cls):

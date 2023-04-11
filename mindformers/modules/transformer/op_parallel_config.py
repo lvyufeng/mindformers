@@ -17,15 +17,13 @@ Parallel Config for the Parallel Training
 This is an experimental interface that is subject to change and/or deletion.
 """
 from __future__ import absolute_import
-# MindSpore 2.0 has changed the APIs of _checkparam, the following try except is for compatibility
-try:
-    from mindspore._checkparam import Validator
-except ImportError:
-    import mindspore._checkparam as Validator
+
+from mindspore._checkparam import Validator
 from mindspore import context
 import mindspore.communication.management as D
 from mindspore.context import ParallelMode
 from mindspore.parallel._utils import _get_parallel_mode
+from mindspore.parallel._ps_context import _is_role_sched
 from mindspore import log as logger
 
 __all__ = [
@@ -194,10 +192,9 @@ def _check_config(config):
             f" in the config.")
 
     # make sure the following is in auto parallel mode
-    is_auto_parallel = _get_parallel_mode() in (ParallelMode.SEMI_AUTO_PARALLEL, ParallelMode.AUTO_PARALLEL)
+    is_auto_parallel = _get_parallel_mode() in (ParallelMode.SEMI_AUTO_PARALLEL, ParallelMode.AUTO_PARALLEL) and not _is_role_sched()
     if not is_auto_parallel:
         return
-
     device_num = D.get_group_size()
     optimizer_shard = context.get_auto_parallel_context("enable_parallel_optimizer")
 

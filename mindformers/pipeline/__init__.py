@@ -22,16 +22,12 @@ from .translation_pipeline import TranslationPipeline
 from .fill_mask_pipeline import FillMaskPipeline
 from .text_classification_pipeline import TextClassificationPipeline
 from .token_classification_pipeline import TokenClassificationPipeline
-from .question_answering_pipeline import QuestionAnsweringPipeline
-from .text_generation_pipeline import TextGenerationPipeline
 
 
-__all__ = ['ZeroShotImageClassificationPipeline',
+__all__ = ['build_pipeline', 'ZeroShotImageClassificationPipeline',
            'ImageClassificationPipeline', 'pipeline', 'BasePipeline']
 
 __all__.extend(translation_pipeline.__all__)
 __all__.extend(fill_mask_pipeline.__all__)
 __all__.extend(text_classification_pipeline.__all__)
 __all__.extend(token_classification_pipeline.__all__)
-__all__.extend(question_answering_pipeline.__all__)
-__all__.extend(text_generation_pipeline.__all__)

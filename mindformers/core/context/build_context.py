@@ -54,18 +54,12 @@ def build_context(config):
         context.set_auto_parallel_context(strategy_ckpt_load_file=config.parallel["strategy_ckpt_load_file"])
 
     if config.profile:
-        profile_cb = clould_file_trans_sys.profile_monitor(start_step=config.profile_start_step,
-                                                           stop_step=config.profile_stop_step,
-                                                           start_profile=config.init_start_profile,
-                                                           profile_communication=config.profile_communication,
-                                                           profile_memory=config.profile_memory)
+        profile_cb = clould_file_trans_sys.profile_monitor()
         logger.warning(
             "In profiler mode, data sink mode will be turned off. "
             "Please reduce the data sample size with 'num_samples' in MindSpore data format according to "
             "https://www.mindspore.cn/mindinsight/docs/zh-CN/master/performance_profiling_ascend.html.")
-        logger.warning("In profiler mode, auto-tune will be turned off.")
-        config.runner_config.sink_mode = False
-        config.auto_tune = False
+        # config.runner_config.sink_mode = False
 
     MindFormerRegister.register_cls(clould_file_trans_sys, alias="cfts")
 
@@ -101,7 +95,8 @@ def init_context(use_parallel=True, context_config=None, parallel_config=None):
         device_id = int(os.getenv('DEVICE_ID', '0'))  # 0 ~ 7
         rank_id = get_rank()  # local_rank
         device_num = get_group_size()  # world_size
-        context_config['device_id'] = device_id
+        #context_config['device_id'] = device_id
+        context_config.pop("device_id")
         parallel_config['parallel_mode'] = PARALLEL_MODE.get(parallel_config.get('parallel_mode'))
         context.set_context(**context_config)
         context.reset_auto_parallel_context()
@@ -134,15 +129,15 @@ def _set_check_context_config(config):
             save_graphs_path = config.get('save_graphs_path')
             if save_graphs_path is None:
                 config.setdefault('save_graphs_path', save_graphs_path)
-                save_graphs_path = os.path.join(DEBUG_INFO_PATH, 'graphs_info')
-                config['save_graphs_path'] = save_graphs_path
+            save_graphs_path = os.path.join(DEBUG_INFO_PATH, 'graphs_info')
+            config['save_graphs_path'] = save_graphs_path
         enable_dump = config.get('enable_dump')
         if enable_dump:
             save_dump_path = config.get('save_dump_path')
             if save_dump_path is None:
                 config.setdefault('save_dump_path', save_dump_path)
-                save_dump_path = os.path.join(DEBUG_INFO_PATH, 'dump_info')
-                config.setdefault('save_dump_path', save_dump_path)
+            save_dump_path = os.path.join(DEBUG_INFO_PATH, 'dump_info')
+            config.setdefault('save_dump_path', save_dump_path)
 
 
 def _set_check_parallel_config(config):

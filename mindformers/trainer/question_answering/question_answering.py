@@ -21,13 +21,9 @@ from mindspore.dataset import GeneratorDataset
 from mindspore.nn import TrainOneStepCell, Optimizer, Cell
 
 from mindformers.dataset import BaseDataset
-from mindformers.models import build_model, build_tokenizer, \
-    BaseModel, BaseTokenizer
-from mindformers.tools.logger import logger
-from mindformers.tools.utils import count_params
+from mindformers.models import BaseModel
 from mindformers.tools.register import MindFormerRegister, \
     MindFormerModuleType, MindFormerConfig
-from mindformers.pipeline import pipeline
 from ..base_trainer import BaseTrainer
 from ..config_args import ConfigArguments
 from ..training_args import TrainingArguments
@@ -41,16 +37,42 @@ class QuestionAnsweringTrainer(BaseTrainer):
         model_name (str): The model name of Task-Trainer. Default: None
     Examples:
             >>> import numpy as np
+            >>> from mindspore.dataset import GeneratorDataset
             >>> from mindspore.nn import AdamWeightDecay, TrainOneStepCell
-            >>> from mindformers.core.lr import build_lr
+            >>> from mindformers.common.lr import build_lr
             >>> from mindformers.trainer import GeneralTaskTrainer
             >>> from mindformers.tools.register import MindFormerConfig
             >>> from mindformers.models import BertForQuestionAnswering, BertConfig
+            >>> class MyDataLoader:
+            ...    def __init__(self):
+            ...        self._input_ids = [np.zeros((384, ), np.float32) for _ in range(64)]
+            ...        self._input_mask = [np.ones((384, ), np.float32) for _ in range(64)]
+            ...        self._token_type_id = [np.ones((384, ), np.float32) for _ in range(64)]
+            ...        self._start_positions = [np.ones((1,), np.float32) for _ in range(64)]
+            ...        self._end_positions = [np.ones((1,), np.float32) for _ in range(64)]
+            ...        self._unique_id = [np.ones((1,), np.float32) for _ in range(64)]
+            ...    def __getitem__(self, index):
+            ...        return self._input_ids[index], self._input_mask[index], self._token_type_id,
+            ...               self._start_positions[index], self._end_positions[index], self._unique_id
+            ...    def __len__(self):
+            ...        return len(self._data)
             >>> config = MindFormerConfig("configs/qa/run_qa_bert_base_uncased.yaml")
             >>> #1) use config to train
-            >>> cls_task = QuestionAnsweringTrainer(model_name='qa_bert_base_uncased')
+            >>> cls_task = QuestionAnsweringTrainer(model_name='bert_question_answering')
             >>> cls_task.train(config=config)
-            >>> #2) use instance function to train
+            >>> #2) use instance function to evaluate
+            >>> dataset = GeneratorDataset(source=MyDataLoader(),
+            ...                            column_names=["input_ids", "input_mask", "token_type_id",
+            ...                                          "start_positions", "end_positions", "unique_id"])
+            >>> dataset = dataset.batch(batch_size=2)
+            >>> bert_config = BertConfig(batch_size=2)
+            >>> network_with_loss = BertForQuestionAnswering(bert_config)
+            >>> lr_schedule = build_lr(class_name='linear', learning_rate=0.001, warmup_steps=100, total_steps=1000)
+            >>> optimizer = AdamWeightDecay(beta1=0.009, beta2=0.999,
+            ...                             learning_rate=lr_schedule,
+            ...                             params=network_with_loss.trainable_params())
+            >>> wrapper = TrainOneStepCell(network_with_loss, optimizer)
+            >>> cls_task.train(config=config, wrapper=wrapper, dataset=dataset)
     Raises:
         NotImplementedError: If train method or evaluate method or predict method not implemented.
     """
@@ -145,66 +167,3 @@ class QuestionAnsweringTrainer(BaseTrainer):
             callbacks=callbacks,
             **kwargs
         )
-
-    def predict(self,
-                config: Optional[Union[dict, MindFormerConfig, ConfigArguments, TrainingArguments]] = None,
-                input_data: Optional[Union[str, list]] = None,
-                network: Optional[Union[Cell, BaseModel]] = None,
-                tokenizer: Optional[BaseTokenizer] = None,
-                **kwargs):
-        """
-        Executes the predict of the trainer.
-
-        Args:
-            config (Optional[Union[dict, MindFormerConfig, ConfigArguments, TrainingArguments]]):
-                The task config which is used to configure the dataset, the hyper-parameter, optimizer, etc.
-                It supports config dict or MindFormerConfig or TrainingArguments or ConfigArguments class.
-                Default: None.
-            input_data (Optional[Union[Tensor, str, list]]): The predict data. Default: None.
-            network (Optional[Union[Cell, BaseModel]]): The network for trainer.
-                It supports model name or BaseModel or MindSpore Cell class.
-                Default: None.
-            tokenizer (Optional[BaseTokenizer]): The tokenizer for tokenizing the input text.
-                Default: None.
-        Returns:
-            A list of prediction.
-        """
-        config = self.set_config(config)
-
-        input_data = "My name is Wolfgang and I live in Berlin - Where do I live?"
-
-        logger.info(".........Build Input Data For Predict..........")
-        if input_data is None:
-            input_data = config.input_data
-
-        if not isinstance(input_data, (str, list)):
-            raise ValueError("Input data's type must be one of [str, list]")
-
-        if isinstance(input_data, list):
-            for item in input_data:
-                if not isinstance(item, str):
-                    raise ValueError("The element of input data list must be str")
-
-        # This is a known issue, you need to specify batch size equal to 1 when creating bert model.
-        config.model.model_config.batch_size = 1
-
-        if tokenizer is None:
-            tokenizer = build_tokenizer(config.processor.tokenizer)
-
-        logger.info(".........Build Net..........")
-        if network is None:
-            network = build_model(config.model)
-
-        if network is not None:
-            logger.info("Network Parameters: %s M.", str(count_params(network)))
-
-        pipeline_task = pipeline(task='question_answering',
-                                 model=network,
-                                 tokenizer=tokenizer,
-                                 **kwargs)
-
-        output_result = pipeline_task(input_data)
-
-        logger.info("output result is: %s", output_result)
-        logger.info(".........Predict Over!.............")
-        return output_result

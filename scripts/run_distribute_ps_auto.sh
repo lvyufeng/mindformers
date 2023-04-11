@@ -14,9 +14,9 @@
 # limitations under the License.
 # ============================================================================
 
-if [ $# != 4 ]
+if [ $# != 2 ]
 then
-  echo "Usage Help: bash run_distribute.sh [CONFIG_PATH] [RUN_STATUS] [HOST_ID] [HOST_PORT]"
+  echo "Usage Help: bash run_distribute.sh [CONFIG_PATH] [RUN_STATUS]"
   exit 1
 fi
 
@@ -28,14 +28,8 @@ check_real_path(){
   fi
 }
 
-export ARNOLD_NUM=1
-export ARNOLD_ID=0
-
-
 CONFIG_FILE=$(check_real_path $1)
 RUN_STATUS=$2
-ARNOLD_WORKER_0_HOST=$3
-ARNOLD_WORKER_0_PORT=$4
 
 if [ ! -f $CONFIG_FILE ]
 then

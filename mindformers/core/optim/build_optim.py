@@ -20,7 +20,6 @@ from mindspore.nn.optim import AdaFactor, AdamWeightDecay, SGD, Adagrad, Adam
 
 from mindformers.core.lr import build_lr
 from mindformers.tools.register import MindFormerRegister, MindFormerModuleType
-from .optim import FusedAdamWeightDecay, FP32StateAdamWeightDecay
 
 
 def build_optim(
@@ -88,12 +87,6 @@ def register_mf_optim():
 
     MindFormerRegister.register_cls(
         Adagrad, module_type=MindFormerModuleType.OPTIMIZER, alias="adagrad")
-
-    MindFormerRegister.register_cls(
-        FusedAdamWeightDecay, module_type=MindFormerModuleType.OPTIMIZER, alias="fused_adamw")
-
-    MindFormerRegister.register_cls(
-        FP32StateAdamWeightDecay, module_type=MindFormerModuleType.OPTIMIZER, alias="fp32_adamw")
 
 
 register_ms_optim()

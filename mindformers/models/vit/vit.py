@@ -258,8 +258,8 @@ class ViTForMaskedImageModeling(BaseModel):
                                           use_mask=True, parallel_config=config.parallel_config)
         self.decoder = nn.CellList(
             nn.Conv2d(
-                in_channels=config.embed_dim,
-                out_channels=config.encoder_stride ** 2 * config.in_chans,
+                in_channels=config.hidden_size,
+                out_channels=config.encoder_stride ** 2 * config.num_channels,
                 kernel_size=1,
             ),
             PixelShuffle(config.encoder_stride),
@@ -268,7 +268,7 @@ class ViTForMaskedImageModeling(BaseModel):
         self.transpose = P.Transpose()
         self.reshape = P.Reshape()
         self.expand_dims = P.ExpandDims()
-        self.l1_loss = nn.L1Loss(reduction='none')
+        self.l1_loss = nn.L1Loss(reduction=None)
         # Initialize weights and apply final processing
         self.init_weights_vit()
 

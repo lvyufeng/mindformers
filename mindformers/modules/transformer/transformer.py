@@ -31,14 +31,11 @@ import mindspore.common.dtype as mstype
 from mindspore.ops import operations as P
 from mindspore.ops import functional as F
 from mindspore.nn.cell import Cell
-try:
-    from mindspore._checkparam import Validator
-except ImportError:
-    import mindspore._checkparam as Validator
+from mindspore._checkparam import Validator
 from mindspore import log as logger
 from mindspore.parallel._utils import _get_parallel_mode, _is_sharding_propagation
 from mindspore.context import ParallelMode
-from mindformers.modules.layers import LayerNorm, Linear, Dropout, \
+from mindformers.modules.layers import LayerNorm, Linear, \
     _args_type_validator_check, _valid_type_checks, _valid_value_checks, \
     _check_past_none_input_none, _check_input_dtype
 from mindformers.modules.transformer.op_parallel_config import default_dpmp_config, _PipeLineConfig, OpParallelConfig, \
@@ -46,7 +43,7 @@ from mindformers.modules.transformer.op_parallel_config import default_dpmp_conf
 from mindformers.modules.transformer.moe import default_moe_config, MoE, _check_moe_config
 
 from mindformers.tools.logger import _LogActionOnce
-from mindformers.tools.utils import is_version_ge
+from mindformers.tools.utils import is_version_le
 
 __all__ = [
     "AttentionMask",
@@ -503,14 +500,9 @@ class FeedForward(Cell):
             else:
                 self.projection.shard(strategy_matmul=((dp, mp), (mp, 1)))
             self.projection.bias.parallel_optimizer = False
-            if is_version_ge(mindspore.__version__, '2.0.0'):
-                self.dropout = Dropout(p=dropout_rate)
-                self.dropout_3d = Dropout(p=dropout_rate)
-                self.dropout_4d = Dropout(p=dropout_rate)
-            else:
-                self.dropout = Dropout(1 - dropout_rate)
-                self.dropout_3d = Dropout(1 - dropout_rate)
-                self.dropout_4d = Dropout(1 - dropout_rate)
+            self.dropout = nn.Dropout(1 - dropout_rate)
+            self.dropout_3d = nn.Dropout(1 - dropout_rate)
+            self.dropout_4d = nn.Dropout(1 - dropout_rate)
             self.cast = P.Cast()
         else:
             _check_config(parallel_config)
@@ -568,17 +560,12 @@ class FeedForward(Cell):
                 self.projection.shard(strategy_matmul=((dp, mp), (mp, 1)),
                                       strategy_bias=((dp, 1), (1,)))
             self.projection.bias.parallel_optimizer = False
-            if is_version_ge(mindspore.__version__, '2.0.0'):
-                self.dropout = Dropout(p=dropout_rate)
-                self.dropout_3d = Dropout(p=dropout_rate)
-                self.dropout_4d = Dropout(p=dropout_rate)
-            else:
-                self.dropout = Dropout(1 - dropout_rate)
-                self.dropout_3d = Dropout(1 - dropout_rate)
-                self.dropout_4d = Dropout(1 - dropout_rate)
-            self.dropout.shard(((dp, 1),))
-            self.dropout_3d.shard(((dp, 1, 1),))
-            self.dropout_4d.shard(((dp, ep, 1, 1),))
+            self.dropout = nn.Dropout(1 - dropout_rate)
+            self.dropout.dropout.shard(((dp, 1),))
+            self.dropout_3d = nn.Dropout(1 - dropout_rate)
+            self.dropout_3d.dropout.shard(((dp, 1, 1),))
+            self.dropout_4d = nn.Dropout(1 - dropout_rate)
+            self.dropout_4d.dropout.shard(((dp, ep, 1, 1),))
             self.cast = P.Cast()
 
     def construct(self, x):
@@ -742,7 +729,7 @@ class VocabEmbedding(Cell):
         self.embedding_table = Parameter(initializer(param_init, [self.vocab_size, self.embedding_size]),
                                          name='embedding_table', parallel_optimizer=False)
 
-        self.is_value_return_support = is_version_ge(mindspore.__version__, '1.9.0')
+        self.is_value_return_support = is_version_le(mindspore.__version__, '1.9.0')
         if parallel_config.vocab_emb_dp:
             self.gather = P.Gather().shard(((1, 1), (parallel_config.data_parallel, 1)))
             logger.info(f"Using {parallel_config.data_parallel} data parallel for the embedding lookup.")
@@ -976,12 +963,8 @@ class MultiHeadAttention(Cell):
             # Normalize factor for attention, sqrt(dk) as widely used
             self.scale_factor = Tensor(math.sqrt(math.sqrt(self.size_per_head)))
             self.use_past = use_past
-            if is_version_ge(mindspore.__version__, '2.0.0'):
-                self.dropout = Dropout(p=hidden_dropout_rate)
-                self.prob_dropout = Dropout(p=attention_dropout_rate)
-            else:
-                self.dropout = Dropout(1 - hidden_dropout_rate)
-                self.prob_dropout = Dropout(1 - attention_dropout_rate)
+            self.dropout = nn.Dropout(1 - hidden_dropout_rate)
+            self.prob_dropout = nn.Dropout(1 - attention_dropout_rate)
             self.softmax = nn.Softmax().to_float(softmax_compute_type)
             self.softmax_3d = nn.Softmax().to_float(softmax_compute_type)
             self.expand_dims = P.ExpandDims()
@@ -1081,14 +1064,10 @@ class MultiHeadAttention(Cell):
             # Normalize factor for attention, sqrt(dk) as widely used
             self.scale_factor = Tensor(math.sqrt(math.sqrt(self.size_per_head)))
             self.use_past = use_past
-            if is_version_ge(mindspore.__version__, '2.0.0'):
-                self.dropout = Dropout(p=hidden_dropout_rate)
-                self.prob_dropout = Dropout(p=attention_dropout_rate)
-            else:
-                self.dropout = Dropout(1 - hidden_dropout_rate)
-                self.prob_dropout = Dropout(1 - attention_dropout_rate)
-            self.dropout.shard(((parallel_config.data_parallel, 1),))
-            self.prob_dropout.shard(
+            self.dropout = nn.Dropout(1 - hidden_dropout_rate)
+            self.dropout.dropout.shard(((parallel_config.data_parallel, 1),))
+            self.prob_dropout = nn.Dropout(1 - attention_dropout_rate)
+            self.prob_dropout.dropout.shard(
                 ((parallel_config.data_parallel, parallel_config.model_parallel, 1, 1),))
             self.softmax = nn.Softmax().to_float(softmax_compute_type)
             self.softmax.softmax.shard(((parallel_config.data_parallel, parallel_config.model_parallel, 1, 1),))
@@ -1233,18 +1212,21 @@ class MultiHeadAttention(Cell):
 
     def _get_batch_size_from_query(self, query):
         r"""Get the batch size from query tensor"""
+        batch_size = None
         # For the incremental prediction, the seq length for the input is 1.
-        if len(F.shape(query)) == 2 and ((self.use_past and self.is_first_iteration) or (not self.use_past)):
-            return F.shape(query)[0] // self.src_seq_length
-        return F.shape(query)[0]
+        if len(F.shape(query)) == 2 and self.is_first_iteration:
+            batch_size = F.shape(query)[0] // self.src_seq_length
+        else:
+            batch_size = F.shape(query)[0]
+        return batch_size
 
     def _get_seq_length_under_incremental(self, length):
         r"""Return the length of the tensor.
             For the incremental prediction, the seq length for the input is 1.
         """
-        if self.use_past and not self.is_first_iteration:
-            return 1
-        return length
+        if self.is_first_iteration:
+            return length
+        return 1
 
     def _check_inputs(self, query_tensor, key_tensor, value_tensor, attention_mask, key_past=None,
                       value_past=None, batch_valid_length=None):

@@ -39,7 +39,8 @@ class GeneralTaskTrainer(BaseTrainer):
         >>> from mindspore.nn import AdamWeightDecay, WarmUpLR, \
         ...      DynamicLossScaleUpdateCell, TrainOneStepWithLossScaleCell, Accuracy
         >>> from mindformers.trainer import GeneralTaskTrainer
-        >>> from mindformers.models import ViTForImageClassification, ViTConfig, ViTImageProcessor
+        >>> from mindformers.tools.register import MindFormerConfig
+        >>> from mindformers.models import ViTForImageClassification, ViTConfig, VitImageProcessor
         >>> class MyDataLoader:
         ...    def __init__(self):
         ...        self._data = [np.zeros((3, 224, 224), np.float32) for _ in range(64)]
@@ -50,10 +51,8 @@ class GeneralTaskTrainer(BaseTrainer):
         ...
         ...    def __len__(self):
         ...        return len(self._data)
-        >>> train_dataset = GeneratorDataset(source=MyDataLoader(), column_names=['image', 'label'])
-        >>> train_dataset = train_dataset.batch(batch_size=2)
-        >>> eval_dataset = GeneratorDataset(source=MyDataLoader(), column_names=['image', 'label'])
-        >>> eval_dataset = eval_dataset.batch(batch_size=2)
+        >>> dataset = GeneratorDataset(source=MyDataLoader(), column_names=['image', 'label'])
+        >>> dataset = dataset.batch(batch_size=2)
         >>> general_task = GeneralTaskTrainer(model_name='common')
         >>> vit_config = ViTConfig(batch_size=2)
         >>> network_with_loss = ViTForImageClassification(vit_config)
@@ -63,9 +62,12 @@ class GeneralTaskTrainer(BaseTrainer):
         ...                             params=network_with_loss.trainable_params())
         >>> loss_scale = DynamicLossScaleUpdateCell(loss_scale_value=2**12, scale_factor=2, scale_window=1000)
         >>> wrapper = TrainOneStepWithLossScaleCell(network_with_loss, optimizer, scale_sense=loss_scale)
-        >>> general_task.train(wrapper=wrapper, dataset=train_dataset)
+        >>> general_task.train(wrapper=wrapper, dataset=dataset)
         >>> compute_metrics = {"Accuracy": Accuracy(eval_type='classification')}
-        >>> general_task.evaluate(network=network_with_loss, dataset=eval_dataset, compute_metrics=compute_metrics)
+        >>> general_task.evaluate(network=network_with_loss, dataset=dataset, compute_metrics=compute_metrics)
+        >>> image_processor = VitImageProcessor(image_resolution=224)
+        >>> input_data = np.uint8(np.random.random((5, 3, 255, 255)))
+        >>> general_task.predict(input_data=input_data, image_processor=image_processor, top_k=5)
     Raises:
         NotImplementedError: If train method or evaluate method or predict method not implemented.
     """
@@ -161,7 +163,7 @@ class GeneralTaskTrainer(BaseTrainer):
             raise NotImplementedError("eval dataset must be define, but get None.")
 
         if network is None:
-            raise NotImplementedError("eval network must be define, but get None.")
+            raise NotImplementedError("train network must be define, but get None.")
 
         if compute_metrics is None:
             raise NotImplementedError("eval metrics must be define, but get None.")

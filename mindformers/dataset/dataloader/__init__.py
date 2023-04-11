@@ -19,6 +19,7 @@ from .cifar100_dataloader import Cifar100DataLoader
 from .wmt16_dataloader import WMT16DataLoader
 from .cluener_dataloader import CLUENERDataLoader
 from .squad_dataloader import SQuADDataLoader
+from .hdfs_dataloader import WikitextHDFSDataLoader
 
-__all__ = ['Flickr8kDataLoader', 'Cifar100DataLoader', 'WMT16DataLoader',
-           'CLUENERDataLoader', 'SQuADDataLoader']
+__all__ = ['build_dataset_loader', 'Flickr8kDataLoader', 'Cifar100DataLoader', 'WMT16DataLoader',
+           'CLUENERDataLoader', 'SQuADDataLoader', 'WikitextHDFSDataLoader']

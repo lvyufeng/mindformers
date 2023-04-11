@@ -1,4 +1,4 @@
-# 欢迎来到MindSpore Transformers（MindFormers）
+# 欢迎来到MindSpore MindFormers
 
 ## 介绍
 
@@ -16,41 +16,48 @@ MindSpore Transformers套件基于MindSpore内置的并行技术和组件化设�
 - 提供预置SOTA权重自动下载及加载功能；
 - 支持人工智能计算中心无缝迁移部署；
 
-如果您对MindSpore Transformers有任何建议，请通过issue与我们联系，我们将及时处理。
-
-- 预训练模型readme：[docs/model_cards](docs/model_cards)
-- 下游任务模型readme：[docs/task_cards](docs/task_cards)
-- 详细指导文档：[mindformers](https://mindformers.readthedocs.io/en/r0.3)
+如果您对MindSpore MindFormers有任何建议，请通过Gitee或MindSpore与我们联系，我们将及时处理。
 
 目前支持的模型列表如下：
 
 |                  模型                   |                                                                                    已支持任务（task name）                                                                                     |                                                                                                                                 已支持模型（model name）                                                                                                                                 |
 |:-------------------------------------:|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
-| [BERT](docs/model_cards/bert.md) |                                                                   masked_language_modeling <br/> text_classification <br/> [token_classification](docs/task_cards/token_classification.md)  <br/> [question_answering](docs/task_cards/question_answering.md)  |      [bert_base_uncased](configs/bert/model_config/bert_base_uncased.yaml) <br/> [txtcls_bert_base_uncased](configs/txtcls/model_config/txtcls_bert_base_uncased.yaml) <br/> [txtcls_bert_base_uncased_mnli](configs/txtcls/model_config/txtcls_bert_base_uncased_mnli.yaml)  <br/> [tokcls_bert_base_chinese](configs/tokcls/model_config/tokcls_bert_base_chinese.yaml) <br/> [tokcls_bert_base_chinese_cluener](configs/tokcls/model_config/tokcls_bert_base_chinese_cluener.yaml)  <br/> [qa_bert_base_uncased](configs/qa/model_config/qa_bert_base_uncased.yaml) <br/> [qa_bert_base_chinese_uncased](configs/qa/model_config/qa_bert_base_uncased_squad.yaml)  |
+| [BERT](docs/model_cards/bert.md) |                                                                   masked_language_modeling <br/> text_classification <br/> [token_classification](docs/task_cards/token_classification.md)            |      [bert_base_uncased](configs/bert/model_config/bert_base_uncased.yaml) <br/> [txtcls_bert_base_uncased](configs/txtcls/model_config/txtcls_bert_base_uncased.yaml) <br/> [txtcls_bert_base_uncased_mnli](configs/txtcls/model_config/txtcls_bert_base_uncased_mnli.yaml)  <br/> [tokcls_bert_base_chinese](configs/tokcls/model_config/tokcls_bert_base_chinese.yaml) <br/> [tokcls_bert_base_chinese_cluener](configs/tokcls/model_config/tokcls_bert_base_chinese_cluener.yaml)    |
 |   [T5](docs/model_cards/t5.md)   |                                                                                       translation                                                                                       |                                                                                                                 [t5_small](configs/t5/model_config/t5_small.yaml)                                                                                                                 |
-| [GPT2](docs/model_cards/gpt2.md) | text_generation | [gpt2_small](configs/gpt2/model_config/gpt2.yaml) <br/> [gpt2_13b](configs/gpt2/model_config/gpt2_13b.yaml) <br/>  [gpt2_52b](configs/gpt2/model_config/gpt2_52b.yaml) |
 |  [MAE](docs/model_cards/mae.md)  |                                                                                  masked_image_modeling                                                                                  |                                                                                                        [mae_vit_base_p16](configs/mae/model_config/mae_vit_base_p16.yaml)                                                                                                         |
 |  [VIT](docs/model_cards/vit.md)  |                                                                                  image_classification                                                                                   |                                                                                                            [vit_base_p16](configs/vit/model_config/vit_base_p16.yaml)                                                                                                             |
 | [Swin](docs/model_cards/swin.md) |                                                                                  image_classification                                                                                   |                                                                                                          [swin_base_p4w7](configs/swin/model_config/swin_base_p4w7.yaml)                                                                                                          |
 | [CLIP](docs/model_cards/clip.md) | [contrastive_language_image_pretrain](docs/task_cards/contrastive_language_image_pretrain.md),<br/> [zero_shot_image_classification](docs/task_cards/zero_shot_image_classification.md) | [clip_vit_b_32](configs/clip/model_config/clip_vit_b_32.yaml) <br/> [clip_vit_b_16](configs/clip/model_config/clip_vit_b_16.yaml) <br/> [clip_vit_l_14](configs/clip/model_config/clip_vit_l_14.yaml) <br/> [clip_vit_l_14@336](configs/clip/model_config/clip_vit_l_14@336.yaml) |
 
-### mindformers安装
+### 安装
+
+#### 安装方式1
+
+支持使用以下pip命令直接进行安装0.3.0版本
+
+```bash
+pip install https://ascend-repo-modelzoo.obs.cn-east-2.myhuaweicloud.com/MindFormers/wheel_packages/0.3.0/mindformers/mindformers-0.3.0-py3-none-any.whl --trusted-host ascend-repo-modelzoo.obs.cn-east-2.myhuaweicloud.com -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+#### 安装方式2
 
 支持源码编译安装，用户可以执行下述的命令进行包的安装
 
 ```bash
-git clone -b r0.3 https://gitee.com/mindspore/mindformers.git
+git clone https://gitee.com/mindspore/mindformers.git
 cd mindformers
-bash build.sh
+sh build.sh
 ```
 
-### 版本匹配关系
+#### 版本匹配关系
 
-|版本对应关系| MindFormers | MindSpore | python |
-|-----------|-------------| ----------| ----------|
-|版本号      | 0.3.0       | 1.8.1 | 3.7.5 |
+|版本对应关系| MindFormers | MindSpore |
+|-----------|-------------| ----------|
+|版本号      | 0.3.0       | 1.8.1 |
 
 ### 快速使用
+
+目前该库提供两种方式供用户使用，套件详细设计请阅：[MindFormers套件设计](https://gitee.com/mindspore/mindformers/wikis/%E7%89%B9%E6%80%A7%E8%AE%BE%E8%AE%A1%E6%96%87%E6%A1%A3?sort_id=6569071)
 
 MindFormers套件对外提供两种使用和开发形式，为开发者提供灵活且简洁的使用方式和高阶开发接口。
 
@@ -63,7 +70,7 @@ MindFormers套件对外提供两种使用和开发形式，为开发者提供灵
     - step1：git clone mindformers
 
   ```shell
-  git clone -b r0.3 https://gitee.com/mindspore/mindformers.git
+  git clone https://gitee.com/mindspore/mindformers.git
   cd mindformers
   ```
 
@@ -75,7 +82,7 @@ MindFormers套件对外提供两种使用和开发形式，为开发者提供灵
 
   ```shell
   # 不包含8本身，生成0~7卡的hccl json文件
-  python mindformers/tools/hccl_tools.py --device_num [0,8]
+  python mindformers/tools/hccl_tools --device_num [0,8]
   ```
 
 - 单卡启动：统一接口启动，根据模型 CONFIG 完成任意模型的单卡训练、微调、评估、推理流程
@@ -90,7 +97,7 @@ python run_mindformer.py --config {CONFIG_PATH} --run_mode {train/finetune/eval/
 ```shell
 # 8卡分布式运行， DEVICE_RANGE = [0, 8], 不包含8本身
 cd scripts
-bash run_distribute.sh RANK_TABLE_FILE CONFIG_PATH DEVICE_RANGE RUN_MODE
+sh run_distribute.sh RANK_TABLE_FILE CONFIG_PATH DEVICE_RANGE RUN_MODE
 ```
 
 - 常用参数说明
@@ -112,9 +119,9 @@ RUN_STATUS: 为任务运行状态，支持关键字 train\finetune\eval\predict
   目前仅支持源码编译安装，用户可以执行下述的命令进行包的安装：
 
   ```shell
-  git clone -b https://gitee.com/mindspore/mindformers.git
+  git clone https://gitee.com/mindspore/mindformers.git
   cd mindformers
-  bash build.sh
+  sh build.sh
   ```
 
     - step2: 准备数据
@@ -178,13 +185,15 @@ RUN_STATUS: 为任务运行状态，支持关键字 train\finetune\eval\predict
 
   cls_trainer = Trainer(task='image_classification', # 已支持的任务名
                         model='vit_base_p16') # 已支持的模型名
-  input_data = './cat.png' # 一张猫的图片
-  # Example 1： 指定输入的数据完成模型推理
-  predict_result_d = cls_trainer.predict(input_data=input_data)
+  # Example 1： 开启推理已集成模型（自动加载权重和默认测试图片）
+  predict_result_a = cls_trainer.predict()
   # Example 2： 开启推理（自动加载训练得到的最后一个权重）
-  predict_result_b = cls_trainer.predict(input_data=input_data, predict_checkpoint=True)
+  predict_result_b = cls_trainer.predict(predict_checkpoint=True)
   # Example 3： 加载指定的权重以完成推理
-  predict_result_c = cls_trainer.predict(input_data=input_data, predict_checkpoint='./output/rank_0/checkpoint/mindformers.ckpt')
+  predict_result_c = cls_trainer.predict(predict_checkpoint='./output/rank_0/checkpoint/mindformers.ckpt')
+  # Example 4： 指定输入的数据完成模型推理
+  input_data = './cat.png' # 一张猫的图片
+  predict_result_d = cls_trainer.predict(input_data=input_data)
   print(predict_result_d)
   ```
 
@@ -264,9 +273,19 @@ RUN_STATUS: 为任务运行状态，支持关键字 train\finetune\eval\predict
   clip_tokenizer = AutoTokenizer.from_pretrained('clip_vit_b_32')
   ```
 
+## Benchmark
+
+请[待补充](docs/benchmark.md)查看每个模型的复现性能基准。
+
+## FAQ
+
+1. 如何迁移HuggingFace权重 ？
+
+请查看[待补充](./tools/README.md)
+
 ## 贡献
 
-欢迎参与社区贡献，可参考MindSpore贡献要求[Contributor Wiki](https://gitee.com/mindspore/mindspore/blob/master/CONTRIBUTING_CN.md)。
+欢迎参与社区贡献，详情参考[Contributor Wiki](https://gitee.com/mindspore/mindspore/blob/master/CONTRIBUTING_CN.md)。
 
 ## 许可证
 

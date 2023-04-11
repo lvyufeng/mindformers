@@ -35,13 +35,11 @@
 
 - 请参考[使用脚本启动](https://gitee.com/mindspore/transformer/blob/master/README.md#%E6%96%B9%E5%BC%8F%E4%B8%80clone-%E5%B7%A5%E7%A8%8B%E4%BB%A3%E7%A0%81)
 
-- 在脚本执行目录创建 `cluener` 文件夹，然后将数据集放入其中
-
 - 脚本运行测试
 
 ```shell
 # finetune
-python run_mindformer.py --config ./configs/tokcls/run_tokcls_bert_base_chinese.yaml --run_mode finetune --load_checkpoint tokcls_bert_base_chinese
+python run_mindformer.py --config ./configs/tokcls/run_tokcls_bert_base_chinese.yaml --run_mode train
 
 # evaluate
 python run_mindformer.py --config ./configs/tokcls/run_tokcls_bert_base_chinese.yaml --run_mode eval --load_checkpoint tokcls_bert_base_chinese_cluener
@@ -54,59 +52,80 @@ python run_mindformer.py --config ./configs/tokcls/run_tokcls_bert_base_chinese.
 
 - Trainer接口开启评估/推理：
 
-```python
-from mindformers.trainer import Trainer
+  ```python
+  import os
+  from mindformers import MindFormerBook
+  from mindformers.trainer import Trainer
+  from mindformers import build_dataset, MindFormerConfig
+  from mindformers import AutoTokenizer
 
-# 初始化trainer
-trainer = Trainer(task='token_classification',
-                  model='tokcls_bert_base_chinese',
-                  train_dataset='./cluener/',
-                  eval_dataset='./cluener/')
-# 测试数据
-input_data = ["结果上周六他们主场0：3惨败给了中游球队瓦拉多利德，近7个多月以来西甲首次输球。"]
+  # 构造数据集
+  project_path = MindFormerBook.get_project_path()
+  dataset_config = MindFormerConfig(os.path.join(project_path, "configs",
+                                    "tokcls", "task_config", "bert_cluener_dataset.yaml"))
 
-#方式1：使用现有的预训练权重进行finetune， 并使用finetune获得的权重进行eval和推理
-trainer.train(resume_or_finetune_from_checkpoint="tokcls_bert_base_chinese",
-              do_finetune=True)
-trainer.evaluate(eval_checkpoint=True)
-trainer.predict(predict_checkpoint=True, input_data=input_data)
+  # 将cluener数据集放置到路径：./cluener
+  dataset = build_dataset(dataset_config.eval_dataset_task)
 
-# 方式2： 从obs下载训练好的权重并进行eval和推理
-trainer.evaluate()
-# INFO - Entity F1=0.7853
-trainer.predict(input_data=input_data)
-# INFO - output result is [[{'entity_group': 'organization', 'start': 20, 'end': 24, 'score': 0.94914, 'word': '瓦拉多利德'},
-#                           {'entity_group': 'organization', 'start': 33, 'end': 34, 'score': 0.9496, 'word': '西甲'}]]
-```
+  # 创建 tokenizer
+  tokenizer = AutoTokenizer.from_pretrained('tokcls_bert_base_chinese_cluener')
+
+  # 显示Trainer的模型支持列表
+  MindFormerBook.show_trainer_support_model_list("token_classification")
+  # INFO - Trainer support model list for txt_classification task is:
+  # INFO -    ['tokcls_bert_base_chinese']
+  # INFO - -------------------------------------
+
+  # 初始化trainer
+  trainer = Trainer(task='token_classification',
+                    model='tokcls_bert_base_chinese',
+                    eval_dataset=dataset)
+
+  # 测试数据
+  input_data = ["结果上周六他们主场0：3惨败给了中游球队瓦拉多利德，近7个多月以来西甲首次输球。"]
+
+  # 微调训练
+  trainer.train(resume_or_finetune_from_checkpoint="tokcls_bert_base_chinese",
+                do_finetune=True)
+
+  # 进行评估
+  trainer.evaluate(eval_checkpoint='./output/rank_0/checkpoint/mindformers_rank_0-3_447.ckpt')
+  # INFO - Entity F1=0.7905
+
+  # 进行推理
+  trainer.predict(predict_checkpoint='./output/rank_0/checkpoint/mindformers_rank_0-3_447.ckpt',
+                  input_data=input_data)
+  # INFO - output result is [[{'entity_group': 'organization', 'start': 20, 'end': 24, 'score': 0.94914, 'word': '瓦拉多利德'},
+  #                           {'entity_group': 'organization', 'start': 33, 'end': 34, 'score': 0.9496, 'word': '西甲'}]]
+  ```
 
 - pipeline接口开启快速推理
 
-```python
-from mindformers.pipeline import TokenClassificationPipeline
-from mindformers import AutoTokenizer, BertForTokenClassification, AutoConfig
-from mindformers.dataset.labels import cluener_labels
+  ```python
+  from mindformers.pipeline import TokenClassificationPipeline
+  from mindformers import AutoTokenizer, BertTokenClassification, AutoConfig
+  from mindformers.dataset.labels import cluener_labels
 
-input_data = ["表身刻有代表日内瓦钟表匠freresoltramare的“fo”字样。"]
+  input_data = ["表身刻有代表日内瓦钟表匠freresoltramare的“fo”字样。"]
 
-id2label = {label_id: label for label_id, label in enumerate(cluener_labels)}
+  id2label = {label_id: label for label_id, label in enumerate(cluener_labels)}
 
-tokenizer = AutoTokenizer.from_pretrained('tokcls_bert_base_chinese_cluener')
-tokcls_cluener_config = AutoConfig.from_pretrained('tokcls_bert_base_chinese_cluener')
+  tokenizer = AutoTokenizer.from_pretrained('tokcls_bert_base_chinese_cluener')
+  tokcls_cluener_config = AutoConfig.from_pretrained('tokcls_bert_base_chinese_cluener')
 
-# This is a known issue, you need to specify batch size equal to 1 when creating bert model.
-tokcls_cluener_config.batch_size = 1
+  # This is a known issue, you need to specify batch size equal to 1 when creating bert model.
+  tokcls_cluener_config.batch_size = 1
 
-model = BertForTokenClassification(tokcls_cluener_config)
-tokcls_pipeline = TokenClassificationPipeline(task='token_classification',
-                                              model=model,
-                                              id2label=id2label,
-                                              tokenizer=tokenizer,
-                                              max_length=model.config.seq_length,
-                                              padding="max_length")
+  model = BertTokenClassification(tokcls_cluener_config)
+  tokcls_pipeline = TokenClassificationPipeline(task='token_classification',
+                                                model=model,
+                                                id2label=id2label,
+                                                tokenizer=tokenizer,
+                                                max_length=model.config.seq_length,
+                                                padding="max_length")
 
-results = tokcls_pipeline(input_data)
-print(results)
-# 输出
-# [[{'entity_group': 'address', 'start': 6, 'end': 8, 'score': 0.52329, 'word': '日内瓦'},
-#   {'entity_group': 'name', 'start': 12, 'end': 25, 'score': 0.83922, 'word': 'freresoltramar'}]]
-```
+  results = tokcls_pipeline(input_data)
+  # 输出
+  # [[{'entity_group': 'address', 'start': 6, 'end': 8, 'score': 0.52329, 'word': '日内瓦'},
+  #   {'entity_group': 'name', 'start': 12, 'end': 25, 'score': 0.83922, 'word': 'freresoltramar'}]]
+  ```

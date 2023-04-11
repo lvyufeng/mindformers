@@ -14,6 +14,7 @@
 # ============================================================================
 """Masked Image Modeling Dataset."""
 import os
+import re
 
 import mindspore.common.dtype as mstype
 import mindspore.dataset.transforms.c_transforms as C
@@ -25,22 +26,20 @@ from .base_dataset import BaseDataset
 
 @MindFormerRegister.register(MindFormerModuleType.DATASET)
 class MaskLanguageModelDataset(BaseDataset):
-    """
-    Bert pretrain dataset.
+    """Bert pretrain dataset.
 
-    Examples:
-        >>> from mindformers.tools.register import MindFormerConfig
-        >>> from mindformers.dataset import build_dataset, check_dataset_config
-        >>> # Initialize a MindFormerConfig instance with a specific config file of yaml.
-        >>> config = MindFormerConfig("bert_base_uncased")
-        >>> check_dataset_config(config)
-        >>> # 1) use config dict to build dataset
-        >>> dataset_from_config = build_dataset(config.train_dataset_task)
-        >>> # 2) use class name to build dataset
-        >>> dataset_from_name = build_dataset(class_name='MaskLanguageModelDataset',
-        ...                                        dataset_config=config.train_dataset)
-        >>> # 3) use class to build dataset
-        >>> dataset_from_class = MaskLanguageModelDataset(config.train_dataset)
+        Examples:
+    >>> from mindformers.tools.register import MindFormerConfig
+    >>> from mindformers.dataset import build_dataset, check_dataset_config
+    >>> # Initialize a MindFormerConfig instance with a specific config file of yaml.
+    >>> config = MindFormerConfig("bert_base_uncased")
+    >>> check_dataset_config(config)
+    >>> # 1) use config dict to build dataset
+    >>> dataset_from_config = build_dataset(config.train_dataset_task)
+    >>> # 2) use class name to build dataset
+    >>> dataset_from_name = build_dataset(class_name='MaskLanguageModelDataset', dataset_config=config.train_dataset)
+    >>> # 3) use class to build dataset
+    >>> dataset_from_class = MaskLanguageModelDataset(config.train_dataset)
     """
     def __new__(cls, dataset_config: dict = None):
         logger.info("Now Create Masked Image Modeling Dataset.")
@@ -48,20 +47,27 @@ class MaskLanguageModelDataset(BaseDataset):
         device_num = int(os.getenv("RANK_SIZE", "1"))
         cls.init_dataset_config(dataset_config)
         rank_id, device_num = cls._check_device_rank_for_parallel(rank_id, device_num)
-        if "data_files" not in dataset_config.data_loader \
-            and dataset_config.data_loader.dataset_dir:
-            dataset_files = []
-            data_dir = dataset_config.data_loader.dataset_dir
-            if os.path.isdir(data_dir):
-                for r, _, f in os.walk(data_dir):
-                    for file in f:
-                        if file.endswith(".tfrecord") or file.endswith(".mindrecord"):
-                            dataset_files.append(os.path.join(r, file))
-            else:
-                if data_dir.endswith(".tfrecord") or data_dir.endswith(".mindrecord"):
-                    dataset_files.append(data_dir)
-        else:
-            dataset_files = list(dataset_config.data_loader.dataset_files)
+
+        compile = re.compile("\.mindrecord\d*$")
+
+        print("dataset_config.data_loader.dataset_dir", dataset_config.data_loader.dataset_dir)
+
+        dataset_files = [[], [], []]
+        if "data_files" not in dataset_config.data_loader:
+            if not isinstance(dataset_config.data_loader.dataset_dir, list):
+                dataset_config.data_loader.dataset_dir = [dataset_config.data_loader.dataset_dir, ]
+            # dataset_dir --> ["**/ftfy_pile_mr2", "**/ftfy_wudao_mr2", ...]
+            # ratio_list --> [0.6 * len(ftfy_pile_mr2)]
+            for data_dir in dataset_config.data_loader.dataset_dir:
+                if os.path.isdir(data_dir):
+                    for r, _, f in os.walk(data_dir):
+                        for file in f:
+                            if re.findall(compile, file):
+                                dataset_files.append(os.path.join(r, file))
+                else:
+                    if data_dir.endswith(".mindrecord"):
+                        dataset_files = data_dir
+
         dataset_config.data_loader.pop("dataset_dir")
         dataset = build_dataset_loader(
             dataset_config.data_loader, default_args={'dataset_files': dataset_files,

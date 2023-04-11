@@ -20,21 +20,17 @@ from __future__ import division
 
 import math
 import numpy as np
-
 from mindspore.common.tensor import Tensor
 import mindspore.common.dtype as mstype
 import mindspore.communication.management as D
-# MindSpore 2.0 has changed the APIs of _checkparam, the following try except is for compatibility
-try:
-    from mindspore._checkparam import Validator
-except ImportError:
-    import mindspore._checkparam as Validator
+from mindspore._checkparam import Validator
 from mindspore.ops import operations as P
 from mindspore.ops import functional as F
 from mindspore.ops.primitive import constexpr
 from mindspore.nn.cell import Cell
 from mindspore.nn.layer import Dense
 from mindspore.context import ParallelMode
+from mindspore.parallel._ps_context import _is_role_sched
 from mindspore.parallel._utils import _get_parallel_mode, _is_sharding_propagation
 from mindformers.modules.transformer.op_parallel_config import default_moeparallel_config
 
@@ -115,7 +111,7 @@ def _check_moe_config(moe_config=None, parallel_config=None):
     if not isinstance(moe_config, MoEConfig):
         raise TypeError(f"'moe_config' must be an instance of MoEConfig, but got {type(moe_config).__name__}.")
     use_moe = (moe_config.expert_num > 1)
-    if use_moe is False:
+    if use_moe is False or _is_role_sched():
         return
     if moe_config.expert_num % parallel_config.expert_parallel != 0:
         raise ValueError(f"When using MoE, the 'expert_num' in {type(moe_config).__name__} must be a multiple "

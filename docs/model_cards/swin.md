@@ -49,73 +49,66 @@ python run_mindformer.py --config ./configs/swin/run_swin_base_p4w7_224_100ep.ya
 
 - Model调用接口
 
-```python
-from mindformers import SwinForImageClassification, SwinConfig
+  ```python
+  from mindformers import SwinForImageClassification, SwinConfig
 
-SwinForImageClassification.show_support_list()
-# 输出：
-# - support list of SwinForImageClassification is:
-# -    ['swin_base_p4w7']
-# - -------------------------------------
+  SwinForImageClassification.show_support_list()
+  # 输出：
+  # - support list of SwinForImageClassification is:
+  # -    ['swin_base_p4w7']
+  # - -------------------------------------
 
-# 模型标志加载模型
-model = SwinForImageClassification.from_pretrained("swin_base_p4w7")
+  # 模型标志加载模型
+  model = SwinForImageClassification.from_pretrained("swin_base_p4w7")
 
-#模型配置加载模型
-config = SwinConfig.from_pretrained("swin_base_p4w7")
-# {'batch_size': 128, 'image_size': 224, 'patch_size': 4, 'num_labels': 1000, 'num_channels': 3,
-# 'embed_dim': 128, 'depths': [2, 2, 18, 2], 'num_heads': [4, 8, 16, 32],
-# 'checkpoint_name_or_path': 'swin_base_p4w7'}
-model = SwinForImageClassification(config)
-```
+  #模型配置加载模型
+  config = SwinConfig.from_pretrained("swin_base_p4w7")
+  # {'batch_size': 128, 'image_size': 224, 'patch_size': 4, 'num_labels': 1000, 'num_channels': 3,
+  # 'embed_dim': 128, 'depths': [2, 2, 18, 2], 'num_heads': [4, 8, 16, 32],
+  # 'checkpoint_name_or_path': 'swin_base_p4w7'}
+  model = SwinForImageClassification(config)
+  ```
 
 - Trainer接口开启训练/评估/推理：
 
-```python
-from mindformers.trainer import Trainer
-from mindformers.tools.image_tools import load_image
+  ```python
+  from mindformers.trainer import Trainer
+  from mindformers.tools.image_tools import load_image
 
-# 初始化任务
-swin_trainer = Trainer(
-    task='image_classification',
-    model='swin_base_p4w7',
-    train_dataset="imageNet-1k/train",
-    eval_dataset="imageNet-1k/val")
-img = load_image("https://ascend-repo-modelzoo.obs.cn-east-2."
+  # 初始化任务
+  swin_trainer = Trainer(
+      task='image_classification',
+      model='swin_base_p4w7',
+      train_dataset="imageNet-1k/train",
+      eval_dataset="imageNet-1k/val")
+
+  swin_trainer.train() # 开启训练
+  swin_trainer.evaluate() # 开启评估
+
+  img = load_image("https://ascend-repo-modelzoo.obs.cn-east-2."
             "myhuaweicloud.com/XFormer_for_mindspore/clip/sunflower.png")
-
-# 方式1：开启训练，并使用训练好的权重进行eval和推理
-swin_trainer.train()
-swin_trainer.evaluate(eval_checkpoint=True)
-predict_result = swin_trainer.predict(predict_checkpoint=True, input_data=img, top_k=3)
-print(predict_result)
-
-# 方式2： 从obs下载训练好的权重并进行eval和推理
-swin_trainer.evaluate() # 下载权重进行评估
-predict_result = swin_trainer.predict(input_data=img, top_k=3) # 下载权重进行推理
-print(predict_result)
-
-# 输出
-# - mindformers - INFO - output result is: [[{'score': 0.89573187, 'label': 'daisy'},
-# {'score': 0.005366202, 'label': 'bee'}, {'score': 0.0013296203, 'label': 'fly'}]]
-```
+  predict_result = swin_trainer.predict(input_data=img, top_k=3) # 开启推理
+  # 输出
+  # - mindformers - INFO - output result is: [[{'score': 0.89573187, 'label': 'daisy'},
+  # {'score': 0.005366202, 'label': 'bee'}, {'score': 0.0013296203, 'label': 'fly'}]]
+  ```
 
 - pipeline接口开启快速推理
 
-```python
-from mindformers.pipeline import pipeline
-from mindformers.tools.image_tools import load_image
+  ```python
+  from mindformers.pipeline import pipeline
+  from mindformers.tools.image_tools import load_image
 
 
-pipeline_task = pipeline("image_classification", model='swin_base_p4w7')
-img = load_image("https://ascend-repo-modelzoo.obs.cn-east-2."
-          "myhuaweicloud.com/XFormer_for_mindspore/clip/sunflower.png")
-pipeline_result = pipeline_task(img, top_k=3)
-print(pipeline_result)
-# 输出
-# [[{'score': 0.89573187, 'label': 'daisy'}, {'score': 0.005366202, 'label': 'bee'},
-# {'score': 0.0013296203, 'label': 'fly'}]]
-```
+  pipeline_task = pipeline("image_classification", model='swin_base_p4w7')
+  img = load_image("https://ascend-repo-modelzoo.obs.cn-east-2."
+            "myhuaweicloud.com/XFormer_for_mindspore/clip/sunflower.png")
+  pipeline_result = pipeline_task(img, top_k=3)
+  print(pipeline_result)
+  # 输出
+  # [[{'score': 0.89573187, 'label': 'daisy'}, {'score': 0.005366202, 'label': 'bee'},
+  # {'score': 0.0013296203, 'label': 'fly'}]]
+  ```
 
  Trainer和pipeline接口默认支持的task和model关键入参
 
@@ -138,15 +131,5 @@ print(pipeline_result)
 2. 执行转换脚本，得到转换后的输出文件`swin_base_p4w7.ckpt`
 
 ```shell
-python mindformers/models/swin/convert_weight.py --torch_path swin_base_patch4_window7_224.pth --mindspore_path swin_base_p4w7.ckpt --is_pretrain False
-```
-
-如需转换官方simmim的预训练权重进行finetune，则执行如下步骤：
-
-1. [从simmim官网](https://github.com/microsoft/SimMIM)提供的google网盘下载[`simmim_swin_192`](https://drive.google.com/file/d/1Wcbr66JL26FF30Kip9fZa_0lXrDAKP-d/view?usp=sharing)的官方权重，文件名为`simmim_pretrain__swin_base__img192_window6__100ep.pth`
-
-2. 执行转换脚本，得到转换后的输出文件`simmim_swin_p4w6.ckpt`
-
-```shell
-python mindformers/models/swin/convert_weight.py --torch_path simmim_pretrain__swin_base__img192_window6__100ep.pth --mindspore_path simmim_swin_p4w6.ckpt --is_pretrain True
+python mindformers/models/swin/convert_weight.py --torch_path pytorch_model.bin --mindspore_path ./swin_base_p4w7.ckpt
 ```

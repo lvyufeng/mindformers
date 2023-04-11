@@ -39,25 +39,9 @@ class MaskedLanguageModelingTrainer(BaseTrainer):
     Args:
         model_name (str): The model name of Task-Trainer. Default: None
     Examples:
-        >>> from mindformers import MaskedLanguageModelingTrainer
-        >>> def generator():
-        >>>     data = np.random.randint(low=0, high=15, size=(128,)).astype(np.int32)
-        >>>     input_mask = np.ones_like(data)
-        >>>     token_type_id = np.zeros_like(data)
-        >>>     next_sentence_lables = np.array([1]).astype(np.int32)
-        >>>     masked_lm_positions = np.array([1, 2]).astype(np.int32)
-        >>>     masked_lm_ids = np.array([1, 2]).astype(np.int32)
-        >>>     masked_lm_weights = np.ones_like(masked_lm_ids)
-        >>>     train_data = (data, input_mask, token_type_id, next_sentence_lables,
-        ...                   masked_lm_positions, masked_lm_ids, masked_lm_weights)
-        >>>     for _ in range(512):
-        ...         yield train_data
-        >>> dataset = GeneratorDataset(generator, column_names=["input_ids", "input_mask", "segment_ids",
-        ...                                                     "next_sentence_labels", "masked_lm_positions",
-        ...                                                     "masked_lm_ids", "masked_lm_weights"])
-        >>> dataset = dataset.batch(batch_size=16)
-        >>> mlm_trainer = MaskedLanguageModelingTrainer(model_name="bert_tiny_uncased")
-        >>> mlm_trainer.train(dataset=dataset)
+        >>> from mindformers import MaskLanguageModelingTrainer
+        >>> mlm_trainer = MaskLanguageModelingTrainer(model_name="bert_tiny_uncased")
+        >>> mlm_trainer.train()
         >>> res = mlm_trainer.predict(input_data = "hello world [MASK]")
     Raises:
         NotImplementedError: If train method or evaluate method or predict method not implemented.
@@ -142,7 +126,6 @@ class MaskedLanguageModelingTrainer(BaseTrainer):
         """
         config = self.set_config(config)
         config.model.model_config.batch_size = 1
-        config.model.model_config.is_training = False
 
         if input_data is None:
             raise ValueError("Input data can not be None!")

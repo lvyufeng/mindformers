@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright 2023 Huawei Technologies Co., Ltd
+# Copyright 2022 Huawei Technologies Co., Ltd
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,10 +14,9 @@
 # limitations under the License.
 # ============================================================================
 
-if [ $# != 4 ] && [ $# != 5 ]
+if [ $# != 4 ]
 then
-  echo "Usage Help: bash run_distribute.sh [RANK_TABLE_FILE] [CONFIG_PATH] [DEVICE_RANGE] [RUN_STATUS] For Multiple Devices In Single Machine"
-  echo "Usage Help: bash run_distribute.sh [RANK_TABLE_FILE] [CONFIG_PATH] [DEVICE_RANGE] [RUN_STATUS] [RANK_SIZE] For Multiple Devices In Multiple Machines"
+  echo "Usage Help: bash run_distribute.sh [RANK_TABLE_FILE] [CONFIG_PATH] [DEVICE_RANGE] [RUN_STATUS]"
   exit 1
 fi
 
@@ -33,12 +32,8 @@ PATH1=$(check_real_path $1)
 CONFIG_FILE=$(check_real_path $2)
 DEVICE_RANGE=$3
 RUN_STATUS=$4
-DEVICE_RANGE_LEN=${#DEVICE_RANGE}
-DEVICE_RANGE=${DEVICE_RANGE:1:DEVICE_RANGE_LEN-2}
-PREFIX=${DEVICE_RANGE%%","*}
-INDEX=${#PREFIX}
-START_DEVICE=${DEVICE_RANGE:0:INDEX}
-END_DEVICE=${DEVICE_RANGE:INDEX+1:DEVICE_RANGE_LEN-INDEX}
+START_DEVICE=${DEVICE_RANGE:1:1}
+END_DEVICE=${DEVICE_RANGE:3:1}
 
 if [ ! -f $PATH1 ]
 then
@@ -63,51 +58,24 @@ exit 1
 fi
 
 ulimit -u unlimited
-
-if [ $# == 4 ]
-then
-  export RANK_SIZE=$(($END_DEVICE - $START_DEVICE))
-else
-  export RANK_SIZE=$5
-fi
-
+export RANK_SIZE=$(($END_DEVICE - $START_DEVICE))
 export RANK_TABLE_FILE=$PATH1
 
-if [ $# == 4 ]
-then
-  for((i=${START_DEVICE}; i<${END_DEVICE}; i++))
-  do
-      export DEVICE_ID=${i}
-      export RANK_ID=$((i-START_DEVICE))
-      rm -rf ./mf_parallel$i
-      mkdir ./mf_parallel$i
-      cp ../*.py ./mf_parallel$i
-      cp -r ../configs ./mf_parallel$i
-      cp -r ../mindformers ./mf_parallel$i
-      cd ./mf_parallel$i || exit
-      echo "start training for rank $RANK_ID, device $DEVICE_ID"
-      env > env.log
-      python run_mindformer.py --config=$CONFIG_FILE --use_parallel=True --run_mode=$RUN_STATUS &> mindformer.log &
-      cd ..
-  done
-else
-  for((i=${START_DEVICE}; i<${END_DEVICE}; i++))
-  do
-      export RANK_ID=${i}
-      export DEVICE_ID=$((i-START_DEVICE))
-      rm -rf ./mf_parallel$i
-      mkdir ./mf_parallel$i
-      cp ../*.py ./mf_parallel$i
-      cp -r ../configs ./mf_parallel$i
-      cp -r ../mindformers ./mf_parallel$i
-      cd ./mf_parallel$i || exit
-      echo "start training for rank $RANK_ID, device $DEVICE_ID"
-      env > env.log
-      python run_mindformer.py --config=$CONFIG_FILE --use_parallel=True --run_mode=$RUN_STATUS &> mindformer.log &
-      cd ..
-  done
-fi
-
+for((i=${START_DEVICE}; i<${END_DEVICE}; i++))
+do
+    export DEVICE_ID=${i}
+    export RANK_ID=$((i-START_DEVICE))
+    rm -rf ./mf_parallel$i
+    mkdir ./mf_parallel$i
+    cp ../*.py ./mf_parallel$i
+    cp -r ../configs ./mf_parallel$i
+    cp -r ../mindformers ./mf_parallel$i
+    cd ./mf_parallel$i || exit
+    echo "start training for rank $RANK_ID, device $DEVICE_ID"
+    env > env.log
+    python run_mindformer.py --config=$CONFIG_FILE --use_parallel=True --run_mode=$RUN_STATUS &> mindformer.log &
+    cd ..
+done
 
 #cd ./pretrain_parallel${START_DEVICE} || exit
 #tail -f mindformer.log

@@ -23,7 +23,7 @@ import mindspore.dataset.transforms.c_transforms as C
 
 from mindformers.tools.register import MindFormerRegister, MindFormerModuleType
 from mindformers.tools.logger import logger
-from mindformers.tools.utils import is_version_ge
+from mindformers.tools.utils import is_version_le
 from .dataloader import build_dataset_loader
 from .base_dataset import BaseDataset
 from ..auto_class import AutoTokenizer
@@ -62,14 +62,10 @@ class TranslationDataset(BaseDataset):
 
         logger.info("Start tokenize on the dataset using tokenizer: %s", tokenizer_config)
         def pad_max_function(src, tgt):
-            src = src.tolist()
-            if isinstance(src, bytes):
-                src = src.decode()
+            src = src.tolist().decode()
             output = tokenizer(prefix + src, padding='max_length', max_length=src_max_length, truncation=True)
 
-            tgt = tgt.tolist()
-            if isinstance(tgt, bytes):
-                tgt = tgt.decode()
+            tgt = tgt.tolist().decode()
             tgt_output = tokenizer(tgt, padding='max_length', max_length=tgt_max_length, truncation=True)
 
             input_ids = np.array(output['input_ids'], np.int32)
@@ -77,17 +73,16 @@ class TranslationDataset(BaseDataset):
             labels = np.array(tgt_output['input_ids'], np.int32)
             return input_ids, attention_mask, labels
 
-        if is_version_ge(mindspore.__version__, "2.0.0"):
-            dataset = dataset.map(pad_max_function,
-                                  input_columns=['source', 'target'],
-                                  output_columns=['input_ids', 'attention_mask', 'labels'])
-            dataset = dataset.project(columns=['input_ids', 'attention_mask', 'labels'])
-
-        else:
+        if is_version_le(mindspore.__version__, "1.10.0"):
             dataset = dataset.map(pad_max_function,
                                   input_columns=['source', 'target'],
                                   output_columns=['input_ids', 'attention_mask', 'labels'],
                                   column_order=['input_ids', 'attention_mask', 'labels'])
+        else:
+            dataset = dataset.map(pad_max_function,
+                                  input_columns=['source', 'target'],
+                                  output_columns=['input_ids', 'attention_mask', 'labels'])
+            dataset = dataset.project(columns=['input_ids', 'attention_mask', 'labels'])
         return dataset
 
     @classmethod

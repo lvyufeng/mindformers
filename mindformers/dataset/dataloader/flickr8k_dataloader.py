@@ -27,14 +27,15 @@ from ...tools.register import MindFormerRegister, MindFormerModuleType
 class Flickr8kDataLoader:
     """Flicker8k Dataloader"""
     _default_column_names = ["image", "text"]
-    def __new__(cls, dataset_dir: str,
+    def __new__(cls, dataset_dir: str, annotation_dir: str,
                 column_names: Optional[Union[List[str], Tuple[str]]] = None,
                 stage: Optional[str] = "train", **kwargs):
         r"""
         Flicker8k Dataloader API.
 
         Args:
-            dataset_dir (str): The directory.
+            dataset_dir (str): The directory to images.
+            annotation_dir (str): The directory to Flickr_8k.trainImages.txt, Flickr_8k.testImages.txt,
                 Flickr_8k.devImages.txt, and Flickr8k.token.txt
             column_names (Optional[Union[List[str], Tuple[str]]]): The output column names,
                 a tuple or a list of string with length 2
@@ -44,12 +45,13 @@ class Flickr8kDataLoader:
             A GeneratorDataset for Flickr8k dataset
 
         Raises:
-            ValueError: Error input for dataset_dir, and column_names.
+            ValueError: Error input for dataset_dir, annotation_dir, and column_names.
             TypeError: Type error for column_names.
 
         Examples:
             >>> from mindformers import Flickr8kDataLoader
-            >>> data_loader = Flickr8kDataLoader("./Flickr8k")
+            >>> data_loader = Flickr8kDataLoader("./Flickr8k/Flickr8k_Dataset/Flickr8k_Dataset",
+            >>>                 "./Flickr8k/Flickr8k_text")
             >>> data_loader = data_loader.batch(1)
             >>> for item in data_loader:
             >>>     print(item)
@@ -69,9 +71,6 @@ class Flickr8kDataLoader:
                 'A young girl being held by an older woman wearing bluejeans sitting on the
                  lap of a bear statue near the entrance to a wooden building .']])]
         """
-        annotation_dir = os.path.join(dataset_dir, "Flickr8k_text")
-        dataset_dir = os.path.join(dataset_dir, "Flickr8k_Dataset", "Flickr8k_Dataset")
-
         if not os.path.isdir(dataset_dir):
             raise ValueError(f"{dataset_dir} is not existed.")
 

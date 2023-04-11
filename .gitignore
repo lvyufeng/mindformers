@@ -140,3 +140,5 @@ dmypy.json
 cython_debug/
 
 checkpoint*/
+wikitext-2049/
+output/

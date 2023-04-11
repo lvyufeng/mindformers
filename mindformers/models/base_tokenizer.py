@@ -20,7 +20,6 @@ from typing import Optional, List, Union
 import copy
 import os
 import json
-import shutil
 from collections import defaultdict
 import yaml
 
@@ -132,8 +131,6 @@ class BaseTokenizer(SpecialTokensMixin):
     MODEL_INPUT_NAME = ['input_ids', 'attention_mask', 'token_type_ids']
     VOCAB_FILES = {}
     FILE_LIST = []
-    _model_type = 0
-    _model_name = 1
 
     def __init__(self, **kwargs):
         super(BaseTokenizer, self).__init__(**kwargs)
@@ -183,8 +180,7 @@ class BaseTokenizer(SpecialTokensMixin):
             >>> print(res)
             {'input_ids': Tensor(shape=[3], dtype=Int32, value= [21820,   296,     1]),
             'attention_mask': Tensor(shape=[3], dtype=Int32, value= [1, 1, 1])}
-            >>> res = tokenizer(["hello world", "today is a good day"],
-            ...                 max_length=7, padding='max_length', return_tensors='ms')
+            >>> res = tokenizer(["hello world", "today is a good day"], return_tensors='ms')
             >>> print(res)
             {'input_ids': Tensor(shape=[3], dtype=Int32, value= [21820,   296,     1]),
             'attention_mask': Tensor(shape=[3], dtype=Int32, value= [1, 1, 1])}
@@ -424,35 +420,17 @@ class BaseTokenizer(SpecialTokensMixin):
     @classmethod
     def _download_using_name(cls, name_or_path):
         """Given the supported model name, download it from the urls"""
-        tokenizer_name = name_or_path
-        if name_or_path.startswith('mindspore'):
-            # Adaptation the name of tokenizer at the beginning of mindspore,
-            # the relevant file will be downloaded from the Xihe platform.
-            # such as "mindspore/clip_vit_b_32"
-            tokenizer_name = name_or_path.split('/')[cls._model_name]
-            cache_path = os.path.join(MindFormerBook.get_xihe_checkpoint_download_folder(),
-                                      tokenizer_name.split('_')[cls._model_type])
-        else:
-            # Default the name of tokenizer,
-            # the relevant file will be downloaded from the Obs platform.
-            # such as "clip_vit_b_32"
-            cache_path = os.path.join(MindFormerBook.get_default_checkpoint_download_folder(),
-                                      name_or_path.split('_')[cls._model_type])
-
+        cache_path = os.path.join(MindFormerBook.get_default_checkpoint_download_folder(),
+                                  name_or_path.split("_")[0])
         if not os.path.exists(cache_path):
             os.makedirs(cache_path, exist_ok=True)
 
-        yaml_file = os.path.join(cache_path, tokenizer_name + ".yaml")
+        yaml_file = os.path.join(cache_path, name_or_path + ".yaml")
         if not os.path.exists(yaml_file):
-            default_yaml_file = os.path.join(
-                MindFormerBook.get_project_path(),
-                "configs", tokenizer_name.split("_")[cls._model_type],
-                "model_config", tokenizer_name + ".yaml")
-            if os.path.realpath(default_yaml_file) and os.path.exists(default_yaml_file):
-                shutil.copy(default_yaml_file, yaml_file)
-                logger.info("default yaml config in %s is used.", yaml_file)
-            else:
-                raise FileNotFoundError(f'default yaml file path must be correct, but get {default_yaml_file}')
+            url = MindFormerBook.get_model_config_url_list()[name_or_path][0]
+            logger.info("Download from the url %s to %s", url, yaml_file)
+            download_with_progress_bar(url, yaml_file)
+        try_sync_file(yaml_file)
 
         # some tokenizers rely on more than one file, e.g gpt2
         tokenizer_need_files = MindFormerBook.get_tokenizer_url_support_list()[name_or_path]
@@ -460,7 +438,7 @@ class BaseTokenizer(SpecialTokensMixin):
             local_file_name = url_file.split('/')[-1]
             file_path = os.path.join(cache_path, local_file_name)
             if not os.path.exists(file_path):
-                logger.info("Download the vocab from the url %s to %s.", url_file, file_path)
+                logger.info("Download the yaml from the url %s to %s.", url_file, file_path)
                 download_with_progress_bar(url_file, file_path)
             try_sync_file(file_path)
 
@@ -472,21 +450,17 @@ class BaseTokenizer(SpecialTokensMixin):
         """Cache the vocab files to the default dir"""
         if not cache_path:
             cache_path = os.path.join(MindFormerBook.get_default_checkpoint_download_folder(),
-                                      name_or_path.split("_")[cls._model_type])
+                                      name_or_path.split("_")[0])
             if not os.path.exists(cache_path):
                 os.makedirs(cache_path)
-
-        # some tokenizers rely on more than one file, e.g gpt2
-        tokenizer_need_files = MindFormerBook.get_tokenizer_url_support_list()[name_or_path]
-        for url_file in tokenizer_need_files:
-            local_file_name = url_file.split('/')[-1]
-            file_path = os.path.join(cache_path, local_file_name)
-            if not os.path.exists(file_path):
-                logger.info("Download the yaml from the url %s to %s.", url_file, file_path)
-                download_with_progress_bar(url_file, file_path)
-            try_sync_file(file_path)
-        read_vocab_file_dict, _ = cls.read_files_according_specific_by_tokenizer(cache_path)
-        return read_vocab_file_dict
+        url_vocab = MindFormerBook.get_tokenizer_url_support_list()[name_or_path][0]
+        local_vocab_name = url_vocab.split('/')[-1]
+        vocab_file = os.path.join(cache_path, local_vocab_name)
+        if not os.path.exists(vocab_file):
+            logger.info("Download the vocab file from the url %s to %s.", url_vocab, vocab_file)
+            download_with_progress_bar(url_vocab, vocab_file)
+        try_sync_file(vocab_file)
+        return vocab_file
 
     @classmethod
     def _get_class_name_and_args_form_config(cls, config):
@@ -639,7 +613,7 @@ class BaseTokenizer(SpecialTokensMixin):
             file_format(str): Support json or yaml. Default yaml.
 
         Examples:
-            >>> from mindformers import T5Tokenizer, MindFormerBook
+            >>> from mindformers import T5Tokenizer
             >>> tokenizer = T5Tokenizer.from_pretrained("t5_small")
             >>> tokenizer.save_pretrained()
             >>> output_path = MindFormerBook.get_default_checkpoint_save_folder()

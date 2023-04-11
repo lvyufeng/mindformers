@@ -14,6 +14,7 @@
 # ============================================================================
 """Gpt Config API."""
 
+import mindspore.common.dtype as mstype
 from mindformers.modules.transformer.moe import MoEConfig
 from mindformers.modules.transformer.transformer import default_transformer_config, default_moe_config, \
     TransformerOpParallelConfig
@@ -22,11 +23,11 @@ from ..utils import convert_mstype
 from ..base_config import BaseConfig
 from ...mindformer_book import MindFormerBook
 
-__all__ = ['GPT2Config']
+__all__ = ['Gpt2Config']
 
 
 @MindFormerRegister.register(MindFormerModuleType.CONFIG)
-class GPT2Config(BaseConfig):
+class Gpt2Config(BaseConfig):
     """
     Gpt config class which defines the model size
     """
@@ -50,12 +51,13 @@ class GPT2Config(BaseConfig):
                  layernorm_dtype: str = "float32",
                  softmax_dtype: str = "float32",
                  compute_dtype: str = "float16",
-                 hidden_act: str = 'gelu',
+                 per_stage_layers: int = 3,
+                 use_relative_positions: bool = False,
                  parallel_config: TransformerOpParallelConfig = default_transformer_config,
                  checkpoint_name_or_path: str = "",
                  moe_config: MoEConfig = default_moe_config,
                  **kwargs):
-        super(GPT2Config, self).__init__(**kwargs)
+        super(Gpt2Config, self).__init__(**kwargs)
         self.dropout_prob = dropout_prob
         self.batch_size = batch_size
         self.seq_length = seq_length
@@ -75,4 +77,5 @@ class GPT2Config(BaseConfig):
         self.checkpoint_name_or_path = checkpoint_name_or_path
         self.moe_config = moe_config
         self.eos_token = eos_token
-        self.hidden_act = hidden_act
+        self.use_relative_positions = use_relative_positions
+        self.per_stage_layers = per_stage_layers

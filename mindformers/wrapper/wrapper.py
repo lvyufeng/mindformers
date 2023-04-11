@@ -13,6 +13,8 @@
 # limitations under the License.
 # ============================================================================
 """Self-Define Wrapper."""
+
+import mindspore.common.dtype as mstype
 from mindspore.common.tensor import Tensor
 from mindspore.common import RowTensor
 from mindspore.ops import composite as C
@@ -20,7 +22,7 @@ from mindspore.ops import functional as F
 from mindspore.ops import operations as P
 from mindspore import nn, Parameter, ParallelMode
 from mindspore.parallel._utils import _get_enable_parallel_optimizer
-import mindspore.common.dtype as mstype
+
 
 from mindformers.core.clip_grad import ClipGradNorm
 from mindformers.tools.register import MindFormerRegister, MindFormerModuleType
@@ -35,7 +37,7 @@ reciprocal = P.Reciprocal()
 
 @_grad_scale.register("Tensor", "Tensor")
 def tensor_grad_scale(scale, grad):
-    return F.cast(grad, mstype.float32) * reciprocal(scale)
+    return grad * F.cast(reciprocal(scale), F.dtype(grad))
 
 
 @_grad_scale.register("Tensor", "RowTensor")
@@ -119,10 +121,13 @@ class MFTrainOneStepCell(nn.TrainOneStepWithLossScaleCell):
 
     def __init__(self, network, optimizer,
                  use_clip_grad=False, max_grad_norm=1.0,
+                 parallel_config=None,
                  scale_sense=1.0):
         super(MFTrainOneStepCell, self).__init__(network, optimizer, scale_sense)
         self.use_clip_grad = use_clip_grad
-        self.clip_grad_norm = ClipGradNorm(max_norm=max_grad_norm)
+        self.clip_grad_norm = ClipGradNorm(self.weights,
+                                           max_norm=max_grad_norm,
+                                           parallel_config=parallel_config)
 
     def construct(self, *inputs):
         """forward and backward."""
@@ -173,34 +178,18 @@ def tensor_shard_grad_scale_pipeline(scale, grad, accu_grad):
 
 @MindFormerRegister.register(MindFormerModuleType.WRAPPER)
 class MFPipelineWithLossScaleCell(nn.TrainOneStepCell):
-    r"""
-    Append an train one step cell with loss scale of pipeline parallel for MindFormers.
+    """
+    Append an optimizer to the training network after that the construct
+    function can be called to create the backward graph.
 
     Args:
         network (Cell): The training network. Note that loss function should have been added.
         optimizer (Optimizer): Optimizer for updating the weights.
-        use_clip_grad (bool): Whether to use gradient clipping. Default: True.
-        max_grad_norm (float): Maximum gradient constraint value. Default: 1.0.
-        scale_sense (Cell): Cell to do the loss scale. Default: 1.0.
-        micro_batch_num (int): Micro batch number of pipeline parallel. Default: 1.
-
-    Inputs:
-        - **(\*inputs)** (Tuple(Tensor)) - Tuple of input tensors with shape :math:`(N, \ldots)`.
-
-    Outputs:
-        Tuple of 3 Tensor, the loss, overflow flag and current loss scale value.
-
-        - **loss** (Tensor) -  A scalar, the loss value.
-        - **overflow** (Tensor) -  A scalar, whether overflow occur or not, the type is bool.
-        - **loss scale** (Tensor) -  The loss scale value, the shape is :math:`()` or :math:`(1,)`.
-
-    Raises:
-        TypeError: If `scale_sense` is neither Cell nor Tensor.
-        ValueError: If shape of `scale_sense` is neither (1,) nor ().
+        scale_sense (Cell): Cell to do the loss scale.
     """
 
     def __init__(self, network, optimizer, use_clip_grad=True, max_grad_norm=1.0,
-                 scale_sense=1.0, micro_batch_num=1):
+                 scale_sense=1.0, parallel_config=None):
         super(MFPipelineWithLossScaleCell, self).__init__(network, optimizer, sens=None)
         self.network = network
         self.network.add_flags(defer_inline=True)
@@ -239,22 +228,19 @@ class MFPipelineWithLossScaleCell(nn.TrainOneStepCell):
             raise TypeError("The 'scale_sense' must be Cell or Tensor, but got {}".format(type(scale_sense)))
         self.opt_shard = _get_enable_parallel_optimizer()
         self.use_clip_grad = use_clip_grad
-        self.clip_grad_norm = ClipGradNorm(max_norm=max_grad_norm)
-        self.micro_size = micro_batch_num
+        self.clip_grad_norm = ClipGradNorm(self.weights, max_norm=max_grad_norm, parallel_config=parallel_config)
+        self.micro_size = parallel_config.micro_batch_num if parallel_config else 1
 
     @C.add_flags(has_effect=True)
     def construct(self, *inputs):
-        """The construct processes of pipeline wrapper cell."""
         loss = self.network(*inputs)
         scaling_sens = self.scale_sense
 
-        scaling_sens_filled = C.ones_like(loss) * F.cast(scaling_sens, F.dtype(loss))
-
         init = self.alloc_status()
         status_clear = self.clear_before_grad(init)
-        scaling_sens_filled = F.depend(scaling_sens_filled, status_clear)
+
         grads = self.grad(self.network, self.weights)(*inputs,
-                                                      self.cast(scaling_sens_filled / self.micro_size,
+                                                      self.cast(scaling_sens / self.micro_size,
                                                                 mstype.float32))
         init = F.depend(init, grads)
         get_status = self.get_status(init)

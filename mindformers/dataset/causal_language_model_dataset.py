@@ -14,39 +14,80 @@
 # ============================================================================
 """Causal Image Modeling Dataset."""
 import os
+
 import mindspore.common.dtype as mstype
 import mindspore.dataset.transforms.c_transforms as C
+
 from mindformers.tools.register import MindFormerRegister, MindFormerModuleType
 from mindformers.tools.logger import logger
+from mindformers.models import build_tokenizer
 from .dataloader import build_dataset_loader
 from .base_dataset import BaseDataset
 
 
 @MindFormerRegister.register(MindFormerModuleType.DATASET)
 class CausalLanguageModelDataset(BaseDataset):
-    """Gpt2 pretrain dataset.
+    """GPT2 pretrain dataset."""
 
-        Examples:
-    >>> from mindformers.tools.register import MindFormerConfig
-    >>> from mindformers.dataset import build_dataset, check_dataset_config
-    >>> # Initialize a MindFormerConfig instance with a specific config file of yaml.
-    >>> config = MindFormerConfig("gpt2")
-    >>> check_dataset_config(config)
-    >>> # 1) use config dict to build dataset
-    >>> dataset_from_config = build_dataset(config.train_dataset_task)
-    >>> # 2) use class name to build dataset
-    >>> dataset_from_name = build_dataset(class_name='CausalLanguageModelDataset', dataset_config=config.train_dataset)
-    >>> # 3) use class to build dataset
-    >>> dataset_from_class = CausalLanguageModelDataset(config.train_dataset)
-    """
     def __new__(cls, dataset_config: dict = None):
-        logger.info("Now Create Causal Image Modeling Dataset.")
+        logger.info("Now Create GPT2 Dataset.")
         rank_id = int(os.getenv("RANK_ID", "0"))
         device_num = int(os.getenv("RANK_SIZE", "1"))
         cls.init_dataset_config(dataset_config)
         rank_id, device_num = cls._check_device_rank_for_parallel(rank_id, device_num)
+        dataset_config.rank_id = rank_id
+        dataset_config.device_num = device_num
+        if dataset_config.data_loader.type != "MindDataset":
+            dataset = cls._process_raw_text_data(dataset_config)
+        else:
+            dataset = cls._process_mindrecord_data(dataset_config)
+
+        dataset = dataset.batch(dataset_config.batch_size,
+                                drop_remainder=dataset_config.drop_remainder,
+                                output_columns=dataset_config.input_columns,
+                                num_parallel_workers=dataset_config.num_parallel_workers)
+
+        dataset = dataset.project(columns=dataset_config.input_columns)
+        dataset = dataset.repeat(dataset_config.repeat)
+        type_cast_op = C.TypeCast(mstype.int32)
+        for input_arg in dataset_config.input_columns:
+            dataset = dataset.map(operations=type_cast_op, input_columns=input_arg)
+        return dataset
+
+    @classmethod
+    def _prepare_for_model(cls, dataset, dataset_config):
+        """Preprocess data for gpt2 model"""
+        tokenizer_config = dataset_config.tokenizer
+        tokenizer = build_tokenizer(tokenizer_config)
+        max_length = tokenizer_config.max_length
+
+        def map_func(input_data):
+            input_data = input_data.tolist()
+            input_ids = tokenizer(input_data, padding='max_length', max_length=max_length, truncation=True,
+                                  add_special_tokens=False)
+            return input_ids.get('input_ids')
+
+        dataset = dataset.map(map_func, input_columns=dataset_config.input_columns,
+                              output_columns=dataset_config.input_columns)
+        return dataset
+
+    @classmethod
+    def _process_raw_text_data(cls, dataset_config):
+        """Process the text data"""
+        dataset_dir = dataset_config.data_loader.pop("dataset_dir")
+        dataset = build_dataset_loader(
+            dataset_config.data_loader, default_args={'dataset_dir': dataset_dir,
+                                                      'num_shards': dataset_config.device_num,
+                                                      'shard_id': dataset_config.rank_id})
+
+        dataset = cls._prepare_for_model(dataset, dataset_config)
+        return dataset
+
+    @classmethod
+    def _process_mindrecord_data(cls, dataset_config):
+        """Process the mindrecord data"""
         if "data_files" not in dataset_config.data_loader \
-            and dataset_config.data_loader.dataset_dir:
+                and dataset_config.data_loader.dataset_dir:
             dataset_files = []
             data_dir = dataset_config.data_loader.dataset_dir
             if os.path.isdir(data_dir):
@@ -61,15 +102,8 @@ class CausalLanguageModelDataset(BaseDataset):
             dataset_files = list(dataset_config.data_loader.dataset_files)
         dataset_config.data_loader.pop("dataset_dir")
         dataset = build_dataset_loader(
-            dataset_config.data_loader, default_args={'dataset_files': dataset_files,
-                                                      'num_shards': device_num, 'shard_id': rank_id})
-        dataset = dataset.batch(dataset_config.batch_size,
-                                drop_remainder=dataset_config.drop_remainder,
-                                output_columns=dataset_config.input_columns,
-                                num_parallel_workers=dataset_config.num_parallel_workers)
-        dataset = dataset.project(columns=dataset_config.input_columns)
-        dataset = dataset.repeat(dataset_config.repeat)
-        type_cast_op = C.TypeCast(mstype.int32)
-        for input_arg in dataset_config.input_columns:
-            dataset = dataset.map(operations=type_cast_op, input_columns=input_arg)
+            dataset_config.data_loader, default_args={'dataset_files': dataset_files[0],
+                                                      'num_shards': dataset_config.device_num,
+                                                      'shard_id': dataset_config.rank_id,
+                                                      'columns_list': dataset_config.input_columns})
         return dataset

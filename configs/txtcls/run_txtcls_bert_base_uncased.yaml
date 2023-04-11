@@ -16,4 +16,4 @@ top_k: 1
 run_mode: 'train'
 trainer:
   type: TextClassificationTrainer
-  model_name: txtcls_bert_base_uncased
+  model_name: bert_for_multiple_choice

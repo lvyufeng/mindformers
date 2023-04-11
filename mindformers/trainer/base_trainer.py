@@ -27,7 +27,6 @@ from mindspore.nn import TrainOneStepCell, Optimizer, Cell, \
 
 from mindformers.mindformer_book import MindFormerBook
 from mindformers.core import build_lr, build_optim, build_callback, build_metric
-from mindformers.core.parallel_config import build_parallel_config
 from mindformers.dataset import build_dataset, check_dataset_config, BaseDataset
 from mindformers.models import build_model, build_processor, build_tokenizer, BaseModel
 from mindformers.wrapper import build_wrapper
@@ -113,14 +112,7 @@ class BaseTrainer:
         else:
             self.setup_task_config()
             self.config = self.default_task_config
-        build_parallel_config(self.config)
         self._check_global_batch_size_for_auto_parallel()
-
-        # del SummaryMonitor, or it will crash
-        for index, callbacks in enumerate(self.config.callbacks):
-            if callbacks["type"] == "SummaryMonitor":
-                del self.config.callbacks[index]
-
         return self.config
 
     def setup_task_config(self):
@@ -163,7 +155,7 @@ class BaseTrainer:
                     logger.info("Pipeline parallel was opened: pipeline_stages = %s, full batch is False, "
                                 "batch size will be changed: "
                                 "batch_size = batch_size * micro_batch_num = %s * %s = %s).",
-                                pp, batch_size, micro_batch_num, batch_size * micro_batch_num)
+                                pp, batch_size, dp, micro_batch_num, batch_size * micro_batch_num)
                     self.config.runner_config.batch_size = batch_size * micro_batch_num
         else:
             logger.info("The current parallel mode is %s, batch size will not be changed: batch_size = %s",
@@ -220,10 +212,12 @@ class BaseTrainer:
         eval_dataset = build_dataset(self.config.eval_dataset_task, default_args=default_args)
         return eval_dataset
 
-    def create_network(self, default_args: dict = None):
+    def create_network(self, default_args: dict = None, is_train: bool = True):
         """Create the network for task trainer."""
         logger.info(".........Build Network From Config..........")
         network = build_model(self.config.model, default_args=default_args)
+        if isinstance(network, (Cell, BaseModel)):
+            network.set_train(is_train)
         return network
 
     def create_pipeline_network(self, default_args: dict = None):
@@ -246,7 +240,6 @@ class BaseTrainer:
         if self.config.runner_wrapper is not None:
             self.config.runner_wrapper.type = "MFPipelineWithLossScaleCell" \
                 if self.config.runner_wrapper.type != "MFPipelineWithLossScaleCell" else self.config.runner_wrapper.type
-            self.config.runner_wrapper.micro_batch_num = self.config.parallel_config.micro_batch_num
             logger.warning("When using the pipeline parallel mode, "
                            "the MFPipelineWithLossScaleCell class is used by default.")
         else:
@@ -343,7 +336,9 @@ class BaseTrainer:
         """Create the model wrapper for training."""
         logger.info(".........Build Model Wrapper for Train From Config..........")
         model_wrapper = build_wrapper(self.config.runner_wrapper,
-                                      default_args={"network": network, "optimizer": optimizer})
+                                      default_args={"network": network,
+                                                    "optimizer": optimizer,
+                                                    "parallel_config": self.config.parallel_config})
         return model_wrapper
 
     def create_callbacks(self, default_args: dict = None):
@@ -400,12 +395,10 @@ class BaseTrainer:
             raise ValueError("Eval dataset is None")
         self.eval_dataset = dataset
 
-    def set_network(self, network, is_train: bool = True):
+    def set_network(self, network):
         """Set the attribute of network."""
         if network is None:
             raise ValueError("network is None")
-        if isinstance(network, (Cell, BaseModel)):
-            network.set_train(is_train)
         self.network = network
 
     def set_model_wrapper(self, model_wrapper):
@@ -474,13 +467,12 @@ class BaseTrainer:
                 network = self.create_network(default_args={"parallel_config": config.parallel_config,
                                                             "moe_config": config.moe_config})
         if network is not None:
-            self.set_network(network, is_train=True)
+            self.set_network(network)
 
         if wrapper is not None:
             self.set_model_wrapper(wrapper)
 
         self.count_parameters()
-
         # build optimizer
         logger.info(".........Build Optimizer For Train..........")
         if optimizer is None and wrapper is None:
@@ -490,10 +482,9 @@ class BaseTrainer:
         logger.info(".........Build Callbacks For Train..........")
         if callbacks is None:
             callbacks = self.create_callbacks(default_args={
-                "learning_rate": optimizer.learning_rate if optimizer else wrapper.optimizer.learning_rate,
-                "origin_epochs": config.runner_config.origin_epochs,
-                "dataset_size": config.data_size,
-                "micro_batch_num": config.parallel_config.micro_batch_num})
+                "learning_rate": optimizer.learning_rate,
+                "micro_batch_num": self.config.parallel_config.micro_batch_num,
+                "config": self.config})
 
         # resume checkpoint
         if config.resume_or_finetune_checkpoint:
@@ -504,6 +495,7 @@ class BaseTrainer:
         if wrapper is None:
             logger.info(".........Build Running Wrapper From Config For Train..........")
             wrapper = self.create_model_wrapper(network, optimizer)
+            self.set_model_wrapper(wrapper)
 
         # define Model and begin training
         logger.info(".........Starting Init Train Model..........")
@@ -513,7 +505,6 @@ class BaseTrainer:
             model = Model(network, optimizer=optimizer)
 
         logger.info(".........Starting Training Model..........")
-        logger.info(".........Model Compiling, Please Wait a Moment...........")
         model.train(config.runner_config.epochs, dataset,
                     callbacks=callbacks,
                     dataset_sink_mode=config.runner_config.sink_mode,
@@ -543,8 +534,8 @@ class BaseTrainer:
         # build network
         if network is None:
             network = self.create_network(default_args={"parallel_config": config.parallel_config,
-                                                        "moe_config": config.moe_config})
-        self.set_network(network, is_train=False)
+                                                        "moe_config": config.moe_config}, is_train=False)
+        self.set_network(network)
 
         self.count_parameters()
 

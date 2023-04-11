@@ -185,10 +185,11 @@ class MindFormerRegister:
             raise ValueError("Can't find class type {} class name {} \
             in class registry".format(type, obj_type))
 
+        print(obj_cls, args)
         try:
             return obj_cls(**args)
         except Exception as e:
-            raise type(e)('{}: {}'.format(obj_cls.__name__, e))
+           raise type(e)('{}: {}'.format(obj_cls.__name__, e))
 
     @classmethod
     def get_instance(cls, module_type=MindFormerModuleType.TOOLS, class_name=None, **kwargs):

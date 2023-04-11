@@ -19,6 +19,7 @@ from enum import Enum
 
 import numpy as np
 
+import mindspore as ms
 from mindspore import context, load_checkpoint, load_param_into_net
 from mindspore import set_seed as ms_set_seed
 
@@ -113,7 +114,8 @@ def check_runner_config(config, dataset):
     """ Check runner config. """
     data_size = dataset.get_dataset_size()
     new_epochs = config.runner_config.epochs
-    config.runner_config.origin_epochs = new_epochs
+    config.origin_epoch = config.runner_config.epochs
+    config.epoch_batch_size = data_size
     if config.runner_config.sink_mode:
         if config.runner_config.per_epoch_size != -1:
             if config.runner_config.per_epoch_size <= 0:

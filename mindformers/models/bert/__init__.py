@@ -17,7 +17,7 @@
 from .bert_tokenizer import BertTokenizer, BasicTokenizer
 from .bert_config import BertConfig
 from .bert import (
-    BertForPreTraining, BertModel, BertForTokenClassification, BertForMultipleChoice,
+    BertForPreTraining, BertModel, BertTokenClassification, BertForMultipleChoice,
     BertForQuestionAnswering)
 from .bert_processor import BertProcessor
 
