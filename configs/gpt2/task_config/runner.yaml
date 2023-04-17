@@ -30,7 +30,7 @@ optimizer:
 # lr sechdule
 lr_schedule:
   type: polynomial
-  learning_rate: 0.00005 # 0.00005
+  learning_rate: 0.00005
   lr_end: 0.000001
   warmup_steps: 2000
   total_steps: -1 # -1 means it will load the total steps of the dataset
@@ -40,6 +40,6 @@ callbacks:
   - type: CheckpointMointor
     prefix: "mindformers"
     save_checkpoint_steps: 100
-    integrated_save: False
+    integrated_save: True
     async_save: False
   - type: ObsMonitor

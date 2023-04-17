@@ -1,0 +1,104 @@
+base_config: [
+    './task_config/context.yaml',
+    './task_config/runner.yaml',
+    './task_config/gpt2_dataset.yaml',
+    './model_config/gpt2_175b.yaml',
+    '../__base__.yaml' ]
+
+# 定义训练的一些常用超参数
+runner_config:
+  epochs: 1 # 训练的epochs数目
+  batch_size: 4 # 每张卡训练数据的 batch size 大小
+  sink_mode: True # 数据下沉的开关，开启可以提高加载数据的性能
+  per_epoch_size: 2 # 数据下沉的数量，这边表示每个epoch下沉2条样本
+  initial_epoch: 0 # 用于恢复训练时开始的epoch数目
+
+# optimizer
+optimizer: # 优化器定义模块
+  type: FP32StateAdamWeightDecay # 定义要使用的优化器API函数类型,支持替换其他的优化器模块,下面的参数表示其API入参
+  beta1: 0.9
+  beta2: 0.95
+  eps: 0.00000001 # 1e-8
+  weight_decay: 0.1
+
+# lr sechdule
+lr_schedule: # 学习策略定义模块
+  type: polynomial # 定义要使用的学习策略，支持其他学习策略API的替换，下面的参数表示其API入参
+  learning_rate: 0.00005
+  lr_end: 0.000001
+  warmup_steps: 2000
+  total_steps: -1 # -1 means it will load the total steps of the dataset
+
+
+# cloud context init config
+context: # MindSpore context模块，下面是运行前的环境初始化相关参数，mindspore.set_context(**kwargs)
+  mode: 0 #0--Graph Mode; 1--Pynative Mode
+  device_target: "Ascend" # 运行的设备定义 支持 Ascend、CPU、GPU
+  graph_kernel_flags: "--disable_expand_ops=Softmax,Dropout --enable_parallel_fusion=true --reduce_fuse_depth=8 --enable_auto_tensor_inplace=true"
+  max_device_memory: "28GB" # 每张卡运行内存限制数量
+  device_id: 0 # 运行的设备号
+
+parallel: # 并行环境配置
+  parallel_mode: 1 # 0-dataset, 1-semi, 2-auto, 3-hybrid
+  gradients_mean: False # 梯度聚合，semi or auto模式下关闭
+  loss_repeated_mean: True # loss平均，默认打开
+  full_batch: True # 数据导入方式，打开即每设备获取的数据一致，关闭则每张卡采样数据不一致
+  search_mode: "sharding_propagation" # auto 模式下自动搜索并行策略
+  enable_parallel_optimizer: True # 开启优化器并行
+  strategy_ckpt_save_file: "./ckpt_strategy.ckpt"  # 恢复训练使用的模型切分策略文件
+
+recompute_config: # 重计算模块
+  recompute: True # 打开重计算
+  parallel_optimizer_comm_recompute: False # 是否开启优化器通信算子重计算
+  mp_comm_recompute: True # 是否开启模型并行下通信算子的重计算
+  recompute_slice_activation: False # 是否开启激活权重切片重计算
+
+# 16 nodes 128 device num
+parallel_config: # 模型的并行配置
+  data_parallel: 2 # 数据切分数量，batch维度切分
+  model_parallel: 8 # 模型权重切分数量，权重维度上切分
+  pipeline_stage: 16 # 流水并行切分stage数量，切分transformer layer层
+  optimizer_shard: True # 优化器并行打开
+  micro_batch_num: 16 # micro batch number，mini_batch切分成 micro_batch = mini_batch/micro_batch_num
+  vocab_emb_dp: True # 词表是否使用数据并行
+  gradient_aggregation_group: 4 # 梯度聚合组数，在组内融合通信算子，提升通信效率
+
+callbacks: # 回调函数模块
+  - type: MFLossMonitor # epoch、step、loss及学习率等日志打印
+  - type: SummaryMonitor # 记录训练过程中常用的summary信息，如loss、参数变化等
+    keep_default_action: True
+  - type: CheckpointMointor # 保存ckpt
+    prefix: "gpt2-13b" # ckpt前缀名
+    save_checkpoint_steps: 500 # 500step保存一次
+    integrated_save: False # 是否聚合所有的权重进行保存
+    async_save: False # 异步保存功能
+  - type: ObsMonitor # AICC平台自动回传日志、ckpt功能
+
+auto_tune: True # 数据性能自动调优
+autotune_per_step: 10 # 每10step进行一次数据性能调整
+
+profile: False # profile收集模型训练性能
+profile_start_step: 1
+profile_stop_step: 10
+init_start_profile: True
+profile_communication: True
+profile_memory: True
+
+use_parallel: True # 是否使用多卡并行训练
+
+micro_batch_interleave_num: 1  # 双副本并行
+
+seed: 0 # 训练随机种子
+resume_or_finetune_checkpoint: "" # 用于恢复训练或finetune的权重路径
+
+
+run_mode: 'train' # 训练模式，gpt2当前仅支持train模式
+trainer: # 任务模块
+  type: MaskedLanguageModelingTrainer # 使用fill_mask的通用任务流进行模型组装训练
+  model_name: 'gpt2_13b' # 模型名称
+
+# cfts init config
+aicc_config: # AICC 平台适配模块
+  obs_path: "obs://zyw-ascend/log/log_zijie/" # obs路径，用于保存AICC平台训练作业生成的日志、CKPT、graph、profile等数据
+  upload_frequence: 2 # 设定保存的频率，这里表示模型每2个step保存一次上述的文件
+  keep_last: True # 是否保持obs中保存的文件与集群中的文件一致，关闭后将不会删除之前保存过的文件

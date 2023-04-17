@@ -3,9 +3,9 @@ model:
     type: Gpt2Config
     seq_length: 2048
     vocab_size: 51200
-    embedding_size: 120 # 5120
-    num_layers: 12 # 40
-    num_heads: 12 # 40
+    embedding_size: 12288
+    num_layers: 96
+    num_heads: 96
     expand_ratio: 4
     hidden_act: "fast_gelu"
     dropout_prob: 0.1

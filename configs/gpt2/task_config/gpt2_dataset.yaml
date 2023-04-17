@@ -1,7 +1,7 @@
 train_dataset: &train_dataset
   data_loader:
     type: MindDataset
-    dataset_dir: "/opt/tiger/arnold/arnold_entrypoint/tools/mindformers/wikitext-2049/wikitext-2049/wikitext-2049.mindrecord"
+    dataset_dir: "/home/wbhz_hw_guzheng/mindformers/wikitext-2049/wikitext-2049/wikitext-2049.mindrecord"
     shuffle: False
 #    num_samples: 4096
   input_columns: ["input_ids"]  # "input_mask", "label_ids"

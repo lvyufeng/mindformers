@@ -2,9 +2,24 @@ from __future__ import absolute_import
 import math
 
 from mindspore._checkparam import Validator
-from mindspore.common.initializer import _register, Initializer, _assignment, _init_random_normal
+from mindspore.common.initializer import _register, Initializer, _assignment, \
+    _init_random_normal, _calculate_fan_in_and_fan_out
 from mindspore.nn.transformer.layers import _args_type_validator_check
 
+
+@_register("mt_init")
+class F2StdNormal(Initializer):
+    """for mt."""
+
+    @_args_type_validator_check(num_layers=Validator.check_positive_int)
+    def __init__(self, num_layers, sigma=0.02, mean=0.0):
+        super().__init__(sigma=sigma, mean=mean)
+        self.sigma = sigma / math.sqrt(2 * num_layers)
+        self.mean = mean
+
+    def _initialize(self, arr):
+        data = _init_random_normal(self.mean, self.sigma, arr.shape)
+        _assignment(arr, data)
 
 
 @_register("small_init")

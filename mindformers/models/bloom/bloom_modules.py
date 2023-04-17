@@ -14,6 +14,7 @@ from mindformers.modules.layers import Linear, LayerNorm, _check_input_shape, \
 from mindspore import context
 from mindspore import nn
 from mindspore.common.parameter import Parameter
+from mindspore.common.initializer import Uniform, Normal
 from mindspore.common.tensor import Tensor
 from mindspore.context import ParallelMode
 from mindspore.nn.cell import Cell
@@ -22,7 +23,7 @@ from mindspore.nn.transformer.op_parallel_config import default_dpmp_config, _ch
 from mindspore.ops import functional as F
 from mindspore.ops import operations as P
 from mindspore.parallel._utils import _get_parallel_mode
-
+from .initializer import F2StdNormal
 
 class AlibiTensor(nn.Cell):
     def __init__(self, seq_length, num_heads):
@@ -77,7 +78,9 @@ class AlibiTensor(nn.Cell):
 
 
 class BloomFeedForward(nn.Cell):
-    def __init__(self, hidden_size,
+    def __init__(self, 
+                 config,
+                 hidden_size,
                  ffn_hidden_size,
                  dropout_rate,
                  hidden_act='gelu',
@@ -89,8 +92,8 @@ class BloomFeedForward(nn.Cell):
                  parallel_config=default_dpmp_config):
         super().__init__()
         # add wang init
-        in_weight_init = in_param_init_func if in_param_init_func else 'normal'
-        out_weight_init = out_param_init_func if out_param_init_func else 'normal'
+        in_weight_init = Normal(config.initializer_range)
+        out_weight_init = F2StdNormal(config.num_layers, config.initializer_range)
         bias_init = 'zeros'
 
         _check_config(parallel_config)
@@ -163,7 +166,8 @@ class BloomFeedForward(nn.Cell):
 
 
 class BloomAttention(Cell):
-    def __init__(self, batch_size,
+    def __init__(self, config,
+                 batch_size,
                  src_seq_length,
                  tgt_seq_length,
                  hidden_size,
@@ -172,8 +176,6 @@ class BloomAttention(Cell):
                  attention_dropout_rate=0.1,
                  compute_dtype=mstype.float16,
                  softmax_compute_type=mstype.float32,
-                 in_param_init_func=None,
-                 out_param_init_func=None,
                  param_init_type=mstype.float32,
                  use_past=False,
                  parallel_config=default_dpmp_config,
@@ -181,10 +183,6 @@ class BloomAttention(Cell):
         super().__init__()
         # ROPE
         self.use_relative_positions = use_relative_positions
-        # Init
-        in_weight_init = in_param_init_func if in_param_init_func else 'normal'
-        out_weight_init = out_param_init_func if out_param_init_func else 'normal'
-        bias_init = 'zeros'
 
         self._is_ascend = context.get_context('device_target') in ["Ascend"]
         _check_config(parallel_config)
@@ -213,8 +211,8 @@ class BloomAttention(Cell):
         # Output layer
         self.projection = Linear(in_channels=hidden_size,
                                  out_channels=hidden_size,
-                                 weight_init=out_weight_init,
-                                 bias_init=bias_init,
+                                 weight_init=F2StdNormal(config.num_layers, config.initializer_range),
+                                 bias_init='zeros',
                                  transpose_b=False,
                                  compute_dtype=compute_dtype,
                                  param_init_type=param_init_type)
@@ -249,9 +247,11 @@ class BloomAttention(Cell):
         self.add = P.Add().shard(
             ((parallel_config.data_parallel, 1, 1, 1),
              (parallel_config.data_parallel, parallel_config.model_parallel, 1, 1)))
+        self.mul_alibi = P.Mul().shard(
+            ((parallel_config.data_parallel, parallel_config.model_parallel, 1, 1), (1,)))
         self.add_alibi = P.Add().shard(
-            ((parallel_config.data_parallel, 1, 1, 1),
-             (parallel_config.data_parallel, 1, 1, 1)))
+            ((parallel_config.data_parallel, parallel_config.model_parallel, 1, 1),
+             (parallel_config.data_parallel, parallel_config.model_parallel, 1, 1)))
 
         # Normalize factor for attention, sqrt(dk) as widely used
         self.scale_factor = Tensor(math.sqrt(math.sqrt(self.size_per_head)))
@@ -270,6 +270,9 @@ class BloomAttention(Cell):
         self.expand_dims = P.ExpandDims().shard(((parallel_config.data_parallel, 1, 1),))
 
         # Query
+        bound = 1 / math.sqrt(hidden_size)
+        bias_init = Uniform(bound)
+        in_weight_init = Normal(config.initializer_range)
         self.dense1 = Linear(hidden_size,
                              hidden_size,
                              weight_init=in_weight_init,
@@ -523,10 +526,10 @@ class BloomAttention(Cell):
         """
         ori_dtype = query.dtype
         score = self.batch_matmul(query.astype(self.dtype), key.astype(self.dtype))
-        score = score.astype(ori_dtype)
+        # score = score.astype(ori_dtype)
         score = self.add_alibi(
-            self.mul(score, self.inv_norm_factor.astype(ori_dtype)),
-            self.mul(alibi_tensor, self.beta.astype(ori_dtype))
+            self.mul_alibi(score, self.inv_norm_factor.astype(self.dtype)),
+            self.mul_alibi(alibi_tensor, self.beta.astype(self.dtype))
             )
         attention_scores = score.astype(self.softmax_dtype)
         # for input size of (bs, 1) namely the second graph,
@@ -574,7 +577,9 @@ class BloomLayer(Cell):
     pass
     """
 
-    def __init__(self, hidden_size,
+    def __init__(self, 
+                 config,
+                 hidden_size,
                  ffn_hidden_size,
                  num_heads,
                  batch_size,
@@ -632,7 +637,8 @@ class BloomLayer(Cell):
         self.layernorm1.shard(((parallel_config.data_parallel, 1),))
         self.layernorm2 = LayerNorm((hidden_size,)).to_float(layernorm_compute_type)
         self.layernorm2.shard(((parallel_config.data_parallel, 1),))
-        self.attention = BloomAttention(hidden_size=hidden_size,
+        self.attention = BloomAttention(config=config,
+                                        hidden_size=hidden_size,
                                         num_heads=num_heads,
                                         batch_size=batch_size,
                                         src_seq_length=seq_length,
@@ -643,19 +649,18 @@ class BloomLayer(Cell):
                                         softmax_compute_type=softmax_compute_type,
                                         param_init_type=param_init_type,
                                         parallel_config=config_to_attention,
-                                        use_relative_positions=use_relative_positions,
-                                        in_param_init_func=in_param_init_func,
-                                        out_param_init_func=out_param_init_func)
+                                        use_relative_positions=use_relative_positions)
 
         # Feed Forward Network, FFN
-        self.output = BloomFeedForward(hidden_size=hidden_size,
-                                      dropout_rate=hidden_dropout_rate,
-                                      ffn_hidden_size=ffn_hidden_size,
-                                      hidden_act=hidden_act,
-                                      in_param_init_func=in_param_init_func,
-                                      out_param_init_func=out_param_init_func,
-                                      param_init_type=param_init_type,
-                                      parallel_config=parallel_config)
+        self.output = BloomFeedForward(config=config,
+                                       hidden_size=hidden_size,
+                                       dropout_rate=hidden_dropout_rate,
+                                       ffn_hidden_size=ffn_hidden_size,
+                                       hidden_act=hidden_act,
+                                       in_param_init_func=in_param_init_func,
+                                       out_param_init_func=out_param_init_func,
+                                       param_init_type=param_init_type,
+                                       parallel_config=parallel_config)
         self.post_layernorm_residual = post_layernorm_residual
         self.add = P.Add().shard(((parallel_config.data_parallel, 1), (parallel_config.data_parallel, 1)))
         self.add_3d = P.Add().shard(((parallel_config.data_parallel, 1, 1), (parallel_config.data_parallel, 1, 1)))

@@ -23,7 +23,7 @@ from ..utils import convert_mstype
 from ..base_config import BaseConfig
 from ...mindformer_book import MindFormerBook
 
-__all__ = ['Gpt2Config']
+__all__ = ['BloomConfig']
 
 
 @MindFormerRegister.register(MindFormerModuleType.CONFIG)

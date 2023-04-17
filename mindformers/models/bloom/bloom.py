@@ -134,7 +134,8 @@ class BloomEmbeddingLayer(nn.Cell):
                                               embedding_size=config.embedding_size,
                                               param_init=initializer(TruncatedNormal(config.initializer_range),
                                                                     [vocab_size, config.embedding_size],
-                                                                    dtype=mstype.float32))
+                                                                    dtype=mstype.float32),
+                                              parallel_config=parallel_config.embedding_dp_mp_config)
 
         new_parallel_config = copy.deepcopy(parallel_config)
         new_parallel_config.vocab_emb_dp = True
@@ -306,6 +307,7 @@ class BloomModel(nn.Cell):
         pp_id_list = generate_pp_id_list_new(layers=self.num_layers, per_stage_layers=config.per_stage_layers)
         for i in range(self.num_layers):
             block = BloomLayer(
+                config=config,
                 hidden_size=config.embedding_size,
                 batch_size=config.batch_size,
                 ffn_hidden_size=config.embedding_size * config.expand_ratio,
