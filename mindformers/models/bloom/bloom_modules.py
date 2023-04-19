@@ -354,7 +354,7 @@ class BloomAttention(Cell):
             F.reshape(
                 key, (batch_size, self._get_seq_length_under_incremental(self.tgt_seq_length),
                       self.n_head, self.size_per_head)),
-            (0, 2, 1, 3))
+            (0, 2, 3, 1))
         # the returned shape is [bs, num_heads, seq_length, size_per_head]
         value = self.transpose(
             F.reshape(
@@ -362,13 +362,6 @@ class BloomAttention(Cell):
                 (batch_size, self._get_seq_length_under_incremental(self.tgt_seq_length),
                  self.n_head, self.size_per_head)),
             (0, 2, 1, 3))
-
-        if self.use_relative_positions:
-            # query, key = self.rotary_embd(query, key)
-            # key = self.merger_head_transpose(key, (0, 1, 3, 2))
-            pass
-        else:
-            key = self.transpose(key, (0, 1, 3, 2))
 
         # support input shape is [bs, seq, seq] or [bs, heads, seq, seq]
         if attention_mask is not None and len(F.shape(attention_mask)) == 3:
