@@ -283,6 +283,10 @@ class FusedAdamWeightDecay(Optimizer):
             new_state.is_param_ps = old_param.is_param_ps
             new_state.init_in_server = old_param.init_in_server
             new_state.cache_enable = old_param.cache_enable
+            if hasattr(old_param.param_info, "cloned_obj"):
+                old_param.param_info.cloned_obj.append(new_state)
+            else:
+                old_param.param_info.cloned_obj = [new_state]
             new_state.requires_aggr = old_param.requires_aggr
             if old_param.cache_shape:
                 new_state.cache_shape = old_param.cache_shape

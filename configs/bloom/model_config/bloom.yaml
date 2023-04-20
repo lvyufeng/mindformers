@@ -16,7 +16,7 @@ model:
     layernorm_dtype: "float32"
     softmax_dtype: "float32"
     compute_dtype: "float16"
-    checkpoint_name_or_path: "bloom"
+    checkpoint_name_or_path: "gpt2"
     eos_token: 50256
     repetition_penalty: 1
     max_decode_length: 1024

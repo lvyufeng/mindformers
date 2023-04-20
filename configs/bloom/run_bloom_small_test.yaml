@@ -12,8 +12,10 @@ context:
   device_id: 0
 
 parallel:
-  parallel_mode: 0 # 0-dataset, 1-semi, 2-auto, 3-hybrid
-  gradients_mean: True
+  parallel_mode: 1 # 0-dataset, 1-semi, 2-auto, 3-hybrid
+  gradients_mean: False
+  loss_repeated_mean: True
+  full_batch: True
   search_mode: "sharding_propagation"
   enable_parallel_optimizer: False
 
@@ -24,18 +26,18 @@ recompute_config:
   recompute_slice_activation: False
 
 parallel_config:
-  data_parallel: 8
-  model_parallel: 1
-  pipeline_stage: 1
+  data_parallel: 2
+  model_parallel: 2
+  pipeline_stage: 2
   optimizer_shard: False
-  micro_batch_num: 1
+  micro_batch_num: 2
   vocab_emb_dp: True
   gradient_aggregation_group: 4
 
 # runner config
 runner_config:
-  epochs: 3
-  batch_size: 8
+  epochs: 10
+  batch_size: 2
   sink_size: 1
   sink_mode: True
   per_epoch_size: -1
@@ -74,16 +76,16 @@ callbacks:
     keep_default_action: True
   - type: CheckpointMointor
     prefix: "mindformers"
-    save_checkpoint_steps: 100
-    integrated_save: True
+    save_checkpoint_steps: 1000
+    integrated_save: False # big size = False
     async_save: False
   - type: ObsMonitor
 
-profile: False
+profile: True
 profile_start_step: 1
 profile_stop_step: 10
 
-use_parallel: False
+use_parallel: True
 
 seed: 0
 resume_or_finetune_checkpoint: ""

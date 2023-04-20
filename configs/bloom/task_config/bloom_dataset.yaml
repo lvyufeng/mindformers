@@ -1,8 +1,9 @@
 train_dataset: &train_dataset
   data_loader:
     type: MindDataset
-    dataset_dir: ""
-    shuffle: True
+    # dataset_dir: "/usr/lilei/train_data"
+    dataset_dir: "/usr/lilei/mindformers-new/wikitext-2049/wikitext-2049"
+    shuffle: False
   input_columns: ["input_ids"]  # "input_mask", "label_ids"
   num_parallel_workers: 8
   python_multiprocessing: False

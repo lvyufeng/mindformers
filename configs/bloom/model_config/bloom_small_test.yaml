@@ -1,8 +1,8 @@
 model:
   model_config:
     type: BloomConfig
-    seq_length: 20
-    vocab_size: 250880
+    seq_length: 1024
+    vocab_size: 50257
     embedding_size: 64
     num_layers: 2
     num_heads: 8
@@ -17,7 +17,7 @@ model:
     softmax_dtype: "float32"
     compute_dtype: "float16"
     checkpoint_name_or_path: "bloom"
-    eos_token: 0
+    eos_token: 2
     repetition_penalty: 1
     max_decode_length: 1024
     top_k: 5

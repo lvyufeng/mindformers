@@ -81,21 +81,21 @@ class BloomEmbeddingLayer(nn.Cell):
             logger.warning("Now, model_parallel will be changed: mp = 1")
             parallel_config.embedding_dp_mp_config.model_parallel = 1
 
-        self.word_embeddings = VocabEmbedding(vocab_size=vocab_size,
+        self.word_embedding = VocabEmbedding(vocab_size=vocab_size,
                                               embedding_size=config.hidden_size,
                                               param_init=initializer(TruncatedNormal(config.initializer_range),
                                                                     [vocab_size, config.hidden_size],
-                                                                    dtype=mstype.float32))
-
-        new_parallel_config = copy.deepcopy(parallel_config)
-        new_parallel_config.vocab_emb_dp = True
-
+                                                                    dtype=mstype.float32),
+                                              parallel_config=config.parallel_config.embedding_dp_mp_config)
+                                              
         self.norm = LayerNorm((config.hidden_size,))
+        # self.norm.shard(((parallel_config.embedding_dp_mp_config.data_parallel, 1),))
 
     def construct(self, input_ids):
         """The forward compute of Embedding Layer."""
-        word_embedding, word_table = self.word_embeddings(input_ids)
+        word_embedding, word_table = self.word_embedding(input_ids)
         embedding = self.norm(word_embedding)
+        embedding = embedding.astype(mstype.float16)
         return embedding, word_table
 
 
@@ -172,13 +172,15 @@ class BloomModel(nn.Cell):
 
         input_embedding, embedding_table = self.embedding(input_ids)
         hidden_states = input_embedding
+        hidden_states_shape = hidden_states.shape
+        hidden_states = hidden_states.reshape((-1, hidden_states_shape[-1]))
         # get 
         causal_mask = self.make_causal_attention(input_mask)
         alibi_tensor = self.build_alibi_tensor(input_mask, hidden_states.dtype)
 
         for i in range(self.num_layers):
             hidden_states, _ = self.blocks[i](hidden_states, alibi_tensor, causal_mask)
-
+        hidden_states = hidden_states.reshape(hidden_states_shape)
         output_state = self.ln_f(hidden_states)
 
         return output_state, embedding_table
@@ -255,7 +257,7 @@ class BloomLMHeadModel(BaseModel):
             loss_parallel_config.model_parallel = 1
 
         self.loss = CrossEntropyLoss(parallel_config=loss_parallel_config)
-        self.load_checkpoint(config)
+#       self.load_checkpoint(config)
 
     def construct(self, input_ids):
         r"""

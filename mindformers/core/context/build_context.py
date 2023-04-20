@@ -101,7 +101,8 @@ def init_context(use_parallel=True, context_config=None, parallel_config=None):
         device_id = int(os.getenv('DEVICE_ID', '0'))  # 0 ~ 7
         rank_id = get_rank()  # local_rank
         device_num = get_group_size()  # world_size
-        context_config['device_id'] = device_id
+        #context_config['device_id'] = device_id
+        context_config.pop("device_id")
         parallel_config['parallel_mode'] = PARALLEL_MODE.get(parallel_config.get('parallel_mode'))
         context.set_context(**context_config)
         context.reset_auto_parallel_context()

@@ -35,10 +35,10 @@ recompute_config:
 
 parallel_config:
   data_parallel: 1
-  model_parallel: 1
+  model_parallel: 2
   expert_parallel: 1
-  pipeline_stage: 1
+  pipeline_stage: 2
   optimizer_shard: False
-  micro_batch_num: 1
+  micro_batch_num: 2
   vocab_emb_dp: True
-  gradient_aggregation_group: 6
+  gradient_aggregation_group: 4

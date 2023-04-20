@@ -5,41 +5,43 @@ base_config: [
     './model_config/bloom_560m.yaml',
     '../__base__.yaml' ]
 
-
-# cloud context init config
 context:
-  mode: 0 # 0--Graph Mode; 1--Pynative Mode
+  mode: 0 #0--Graph Mode; 1--Pynative Mode
   device_target: "Ascend"
+  graph_kernel_flags: "--disable_expand_ops=Softmax,Dropout --enable_parallel_fusion=true --reduce_fuse_depth=8 --enable_auto_tensor_inplace=true"
   device_id: 0
 
 parallel:
-  parallel_mode: 0 # 0-dataset, 1-semi, 2-auto, 3-hybrid
-  gradients_mean: True
+  parallel_optimizer_config: {"gradient_accumulation_shard": False}
+  parallel_mode: 1 # 0-dataset, 1-semi, 2-auto, 3-hybrid
+  gradients_mean: False
+  loss_repeated_mean: True
+  full_batch: True # if False, export PIPELINE_SLICE_SKIP_REDISTRIBUTION=1, else True
   search_mode: "sharding_propagation"
-  enable_parallel_optimizer: False
+  enable_parallel_optimizer: True  # optimizer shard
+  # strategy_ckpt_save_file: "./ckpt_strategy.ckpt"
 
 recompute_config:
-  recompute: False
+  recompute: True
   parallel_optimizer_comm_recompute: False
   mp_comm_recompute: True
-  recompute_slice_activation: False
+  recompute_slice_activation: True
 
 parallel_config:
-  data_parallel: 4
-  model_parallel: 2
-  pipeline_stage: 1
-  optimizer_shard: False
-  micro_batch_num: 1
+  data_parallel: 2
+  model_parallel: 4
+  pipeline_stage: 8
+  optimizer_shard: True
+  micro_batch_num: 16
   vocab_emb_dp: True
   gradient_aggregation_group: 4
 
 # runner config
 runner_config:
-  epochs: 3
-  batch_size: 8
-  sink_size: 1
+  epochs: 1
+  batch_size: 1
   sink_mode: True
-  per_epoch_size: -1
+  per_epoch_size: 1
   initial_epoch: 0
   has_trained_epoches: 0
   has_trained_steps: 0
@@ -55,7 +57,7 @@ runner_wrapper:
 
 # optimizer
 optimizer:
-  type: FusedAdamWeightDecay
+  type: FP32StateAdamWeightDecay
   beta1: 0.9
   beta2: 0.95
   eps: 0.00000001 # 1e-8
@@ -75,16 +77,21 @@ callbacks:
     keep_default_action: True
   - type: CheckpointMointor
     prefix: "mindformers"
-    save_checkpoint_steps: 100
-    integrated_save: True
+    save_checkpoint_steps: 1000
+    integrated_save: False
     async_save: False
   - type: ObsMonitor
 
+auto_tune: True
+autotune_per_step: 10
+
 profile: False
 profile_start_step: 1
-profile_stop_step: 10
+profile_stop_step: 74
 
-use_parallel: False
+use_parallel: True
+
+micro_batch_interleave_num: 1
 
 seed: 0
 resume_or_finetune_checkpoint: ""
@@ -94,3 +101,4 @@ run_mode: 'train'
 trainer:
   type: CausalLanguageModelingTrainer
   model_name: 'bloom'
+

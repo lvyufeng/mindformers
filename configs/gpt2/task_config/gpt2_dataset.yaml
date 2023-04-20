@@ -1,8 +1,8 @@
 train_dataset: &train_dataset
   data_loader:
     type: MindDataset
-    dataset_dir: ""
-    shuffle: True
+    dataset_dir: "/autotest/zlhuang/train_data"
+    shuffle: False
   input_columns: ["input_ids"]  # "input_mask", "label_ids"
   num_parallel_workers: 8
   python_multiprocessing: False

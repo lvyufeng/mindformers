@@ -6,10 +6,10 @@ base_config: [
     '../__base__.yaml' ]
 
 runner_config:
-  epochs: 2
-  batch_size: 2
+  epochs: 5
+  batch_size: 4
   sink_mode: True
-  per_epoch_size: 2
+  per_epoch_size: 4
   initial_epoch: 0
   has_trained_epoches: 0
   has_trained_steps: 0
@@ -28,33 +28,33 @@ parallel:
   loss_repeated_mean: True
   full_batch: True
   search_mode: "sharding_propagation"
-  enable_parallel_optimizer: True
+  enable_parallel_optimizer: False  # optimizer shard
   strategy_ckpt_save_file: "./ckpt_strategy.ckpt"
 
 recompute_config:
-  recompute: True
+  recompute: False
   parallel_optimizer_comm_recompute: False
   mp_comm_recompute: True
   recompute_slice_activation: False
 
 # 4 nodes 32 device num
 parallel_config:
-  data_parallel: 4
-  model_parallel: 8
-  pipeline_stage: 1
-  optimizer_shard: True
-  micro_batch_num: 1
+  data_parallel: 1
+  model_parallel: 2
+  pipeline_stage: 2
+  optimizer_shard: False  # optimizer shard
+  micro_batch_num: 2
   vocab_emb_dp: True
   gradient_aggregation_group: 4
 
-runner_wrapper:
-  type: MFPipelineWithLossScaleCell
-  scale_sense:
-    type: DynamicLossScaleUpdateCell
-    loss_scale_value: 4294967296
-    scale_factor: 2
-    scale_window: 1000
-  use_clip_grad: True
+# runner_wrapper:
+#   type: MFPipelineWithLossScaleCell
+#   scale_sense:
+#     type: DynamicLossScaleUpdateCell
+#     loss_scale_value: 4294967296
+#     scale_factor: 2
+#     scale_window: 1000
+#   use_clip_grad: True
 
 callbacks:
   - type: MFLossMonitor
@@ -62,12 +62,12 @@ callbacks:
     keep_default_action: True
   - type: CheckpointMointor
     prefix: "gpt2-13b"
-    save_checkpoint_steps: 500
+    save_checkpoint_steps: 5000
     integrated_save: False
     async_save: False
   - type: ObsMonitor
 
-auto_tune: True
+auto_tune: False
 autotune_per_step: 10
 
 profile: False

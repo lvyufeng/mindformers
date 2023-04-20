@@ -14,9 +14,9 @@
 # limitations under the License.
 # ============================================================================
 
-if [ $# != 4 ]
+if [ $# != 2 ]
 then
-  echo "Usage Help: bash run_distribute.sh [CONFIG_PATH] [RUN_STATUS] [HOST_ID] [HOST_PORT]"
+  echo "Usage Help: bash run_distribute.sh [CONFIG_PATH] [RUN_STATUS]"
   exit 1
 fi
 
@@ -28,21 +28,19 @@ check_real_path(){
   fi
 }
 
-export ARNOLD_NUM=1
-export ARNOLD_ID=0
-
-
 CONFIG_FILE=$(check_real_path $1)
 RUN_STATUS=$2
-ARNOLD_WORKER_0_HOST=$3
-ARNOLD_WORKER_0_PORT=$4
 
 if [ ! -f $CONFIG_FILE ]
 then
     echo "error: config_path=$CONFIG_FILE is not a file"
 exit 1
 fi
-
+# hostname 10.78.145.28
+export ARNOLD_WORKER_0_HOST=10.78.145.28
+# export ARNOLD_ID=0
+export ARNOLD_WORKER_0_PORT=11230
+export ARNOLD_NUM=8
 ulimit -u unlimited
 export DEVICE_NUM=$(($ARNOLD_NUM * 8))
 export RANK_SIZE=$DEVICE_NUM
@@ -87,14 +85,3 @@ then
   python3 run_mindformer.py --config=$CONFIG_FILE --use_parallel=True --run_mode=$RUN_STATUS  > sched.log 2>&1  &
   cd ..
 fi
-
-if [ $ARNOLD_ID == 0 ] && [ $ARNOLD_NUM > 1 ]
-then
-  tail -f sched/sched.log
-  tail_pid=$!
-else
-  tail -f worker_$END_ID/work.log
-  tail_pid=$!
-fi
-wait $(jobs -p | grep -v $tail_pid)
-kill $tail_pid

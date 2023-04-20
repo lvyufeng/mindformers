@@ -245,6 +245,8 @@ class GPT2Model(nn.Cell):
 
     def construct(self, input_ids, input_mask):
         """GPT model"""
+        P.Print()(f"in GPT2Model construct model: input_ids: \n{input_ids}")
+        P.Print()(f"\nin GPT2Model construct model: input_mask: \n{input_mask}")
         batch_size, _ = F.shape(input_ids)
         input_position = self.tile(self.input_position, (batch_size, 1))
 

@@ -92,4 +92,4 @@ resume_or_finetune_checkpoint: ""
 run_mode: 'train'
 trainer:
   type: CausalLanguageModelingTrainer
-  model_name: 'bloom'
+  model_name: 'gpt2'

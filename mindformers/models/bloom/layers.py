@@ -194,6 +194,11 @@ class BloomAttention(Cell):
             self.add = P.Add().shard(
                 ((parallel_config.data_parallel, 1, 1, 1),
                  (parallel_config.data_parallel, parallel_config.model_parallel, 1, 1)))
+            self.add_alibi = P.Add().shard(
+                ((parallel_config.data_parallel, parallel_config.model_parallel, 1, 1),
+                 (parallel_config.data_parallel, parallel_config.model_parallel, 1, 1)))
+            self.mul_alibi = P.Mul().shard(
+                ((parallel_config.data_parallel, parallel_config.model_parallel, 1, 1), (1,)))
             # Normalize factor for attention, sqrt(dk) as widely used
             self.scale_factor = Tensor(math.sqrt(math.sqrt(self.size_per_head)))
             self.inv_norm_factor = Tensor([1.0 / math.sqrt(self.size_per_head)])
@@ -452,10 +457,10 @@ class BloomAttention(Cell):
         # Attention score [bs, num_heads, seq_length, seq_length]
         ori_dtype = query.dtype
         score = self.batch_matmul(query.astype(self.dtype), key.astype(self.dtype))
-        score = score.astype(ori_dtype)
-        score = self.add(
-            self.mul(score, self.inv_norm_factor.astype(ori_dtype)),
-            self.mul(alibi_tensor, self.beta.astype(ori_dtype))
+        # score = score.astype(ori_dtype)
+        score = self.add_alibi(
+            self.mul_alibi(score, self.inv_norm_factor.astype(ori_dtype)),
+            self.mul_alibi(alibi_tensor, self.beta.astype(ori_dtype))
             )
         attention_scores = score.astype(self.softmax_dtype)
         # for input size of (bs, 1) namely the second graph,
@@ -676,8 +681,8 @@ class BloomBlock(Cell):
     def construct(self, x, alibi_tensor, input_mask=None, init_reset=True, batch_valid_length=None):
         """forward process"""
         self._check_input(x, input_mask, init_reset, batch_valid_length)
-        x_shape = x.shape
-        x = x.reshape((-1, x_shape[-1]))
+        # x_shape = x.shape
+        
         if self.post_layernorm_residual:
             input_x = x
         else:
@@ -734,26 +739,30 @@ class BloomBlock(Cell):
         mlp_logit = ops.depend(mlp_logit, key_update)
 
         # if shape is 3d, we reshape the inputs of the add
-        if len(x_shape) == 3:
-            output_x = output_x.reshape(x_shape)
-            mlp_logit = mlp_logit.reshape(x_shape)
-            x = x.reshape(x_shape)
 
-            if self.post_layernorm_residual:
-                output = self.add_3d(output_x, mlp_logit)
-                output = output.reshape((-1, x_shape[-1]))
-                output = self.layernorm1(output)
-                output = output.reshape(x_shape)
-            else:
-                output = self.add_3d(x, mlp_logit)
-        else:
-            if self.post_layernorm_residual:
-                output = self.add(output_x, mlp_logit)
-                output = self.layernorm1(output)
-            else:
-                output = self.add(x, mlp_logit)
-            output = output.reshape(x_shape)
+        # if len(x_shape) == 3:
+        #     output_x = output_x.reshape(x_shape)
+        #     mlp_logit = mlp_logit.reshape(x_shape)
+        #     x = x.reshape(x_shape)
 
+        #     if self.post_layernorm_residual:
+        #         output = self.add_3d(output_x, mlp_logit)
+        #         output = output.reshape((-1, x_shape[-1]))
+        #         output = self.layernorm1(output)
+        #         output = output.reshape(x_shape)
+        #     else:
+        #         output = self.add_3d(x, mlp_logit)
+        # else:
+        #     if self.post_layernorm_residual:
+        #         output = self.add(output_x, mlp_logit)
+        #         output = self.layernorm1(output)
+        #     else:
+        #         output = self.add(x, mlp_logit)
+        #     output = output.reshape(x_shape)
+        # [B*L, hidden_size]
+        output = self.add(x, mlp_logit)
+        # output = output.reshape(x_shape)
+        # output += 0.0
         if self.use_moe:
             return output, layer_present, aux_loss
         return output, layer_present
