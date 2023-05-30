@@ -289,6 +289,78 @@ class Dropout(nn.Cell):
         else:
             self.dropout.shard(strategy)
 
+class CpmLayerNorm(Cell):
+    r"""
+        A self-defined layer norm operation using reduce sum and reduce mean
+
+        Args:
+            normalized_shape (tuple): The shape of the input tensor
+            eps (float): The epsilon value of the denominator. Default 1e-5.
+            param_init_type: The param init type.
+        Inputs:
+            - **x** (Tensor) - Tensor of shape :math:`(batch, seq\_length, hidden\_size)`.
+
+        Outputs:
+            Tensor of shape :math:`(batch, seq_length, hidden_size)`.
+    """
+
+    def __init__(self, normalized_shape, eps=1e-5, param_init_type=mstype.float32):
+        super(LayerNorm, self).__init__()
+        if param_init_type not in [mstype.float32, mstype.float16]:
+            raise TypeError("The type of parameter 'param_init_type' should in [float32, float16], "
+                            "but got the type : {}.".format(type(param_init_type)))
+        self.weight = Parameter(initializer('ones', normalized_shape, param_init_type), name="beta",
+                              parallel_optimizer=False)
+
+        self.eps = eps
+
+        self.pow = P.Pow()
+        self.mean = P.ReduceMean(keep_dims=True)
+        self.mul1 = P.Mul()
+        self.mul2 = P.Mul()
+        self.rsqrt = P.Rsqrt()
+        self.add = P.Add()
+
+    def construct(self, hidden_states: Tensor):
+        """
+        Args:
+            hidden_states (`Tensor` of shape `(batch, seq_len, dim_in)`)
+        """
+        if hidden_states.shape[-1] != self.dim_norm:
+            raise AssertionError("hidden_states.shape[-1] != self.dim_norm")
+        old_dtype = hidden_states.dtype
+        variance = self.mean(self.pow(hidden_states.to(mindspore.float32), 2), -1)
+        hidden_states = self.mul1(hidden_states, self.rsqrt(self.add(variance, self.eps))).to(
+            old_dtype
+        )
+        hidden_states = self.mul2(hidden_states, self.weight)
+        return hidden_states
+
+    def shard(self, strategy):
+        r"""
+        Set the shard for the layer norm. the strategy size should be equal to the inputs.
+
+        Note:
+            It is valid only in semi auto parallel or auto parallel mode.
+            In other parallel modes, strategies set here will be ignored.
+
+        Args:
+            strategy (tuple): The strategy for the dropout. Should be the same shape as the inputs.
+        Examples:
+            >>> import mindspore
+            >>> net = mindformers.modules.transformer.LayerNorm(normalized_shape=(1024, 10))
+            >>> net.shard(((10, 2, 1),))
+        """
+        self.mean.shard(strategy)
+        self.pow.shard(strategy)
+        self.rsqrt.shard(strategy)
+
+        self.mul1.shard((strategy[0], strategy[0]))
+        self.add.shard((strategy[0], ()))
+        self.mul2.shard((strategy[0], (1,)))
+
+        return self
+
 
 class LayerNorm(Cell):
     r"""
